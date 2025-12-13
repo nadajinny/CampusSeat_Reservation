@@ -1,0 +1,70 @@
+<!-- =========================
+     login.html
+     ========================= -->
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>로그인 | 예약 시스템</title>
+</head>
+<body>
+  <header>
+    <h1>회의실·열람실 좌석 예약 시스템</h1>
+    <p>학번 기반 로그인</p>
+  </header>
+
+  <main>
+    <!-- 실제 인증은 아직 없으므로, "로그인"을 누르면 dashboard.html로 이동하도록 구성 -->
+    <section aria-label="로그인 폼">
+      <h2>로그인</h2>
+
+      <form id="login-form" action="dashboard.html" method="get">
+        <fieldset>
+          <legend>계정 정보 입력</legend>
+
+          <div>
+            <label for="studentId">학번</label><br />
+            <input
+              id="studentId"
+              name="studentId"
+              type="text"
+              inputmode="numeric"
+              autocomplete="username"
+              placeholder="예: 202323007"
+              required
+            />
+          </div>
+
+          <br />
+
+          <div>
+            <label for="password">비밀번호</label><br />
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="비밀번호 입력"
+              required
+            />
+          </div>
+
+          <br />
+
+          <button type="submit">로그인</button>
+
+          <p>
+            ※ 현재는 화면 흐름 확인용 HTML입니다. <br />
+            실제 인증/세션 처리는 백엔드 또는 JS 연동 단계에서 추가하세요.
+          </p>
+        </fieldset>
+      </form>
+    </section>
+  </main>
+
+  <footer>
+    <p>© Reservation System</p>
+  </footer>
+</body>
+</html>
