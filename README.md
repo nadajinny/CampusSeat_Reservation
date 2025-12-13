@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-sw
-=======
 # Seat & Meeting Room Reservation System
 
 대학교 캠퍼스 내 **회의실 및 열람실 좌석**을 효율적으로 예약·관리하기 위한 웹 기반 예약 시스템입니다.  
@@ -156,4 +153,3 @@ Jeonbuk National University
 ## 📄 License
 
 This project is for educational purposes as part of a Software Engineering course.
->>>>>>> 858e994 (docs: init REAME.md)
