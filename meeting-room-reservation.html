@@ -54,15 +54,43 @@
 
         <br />
 
+        <!-- 🔽 참여자 학번 입력 (3명 고정) -->
         <div>
-          <label for="participants">참여자 명단 (3명 이상)</label><br />
-          <textarea
-            id="participants"
-            name="participants"
-            rows="4"
-            placeholder="학번 또는 이름 입력"
+          <p><strong>참여자 학번 (3명)</strong></p>
+
+          <label for="participant1">참여자 1</label><br />
+          <input
+            type="text"
+            id="participant1"
+            name="participant1"
+            placeholder="예: 202323007"
+            pattern="\d{9}"
             required
-          ></textarea>
+          />
+
+          <br /><br />
+
+          <label for="participant2">참여자 2</label><br />
+          <input
+            type="text"
+            id="participant2"
+            name="participant2"
+            placeholder="예: 202323008"
+            pattern="\d{9}"
+            required
+          />
+
+          <br /><br />
+
+          <label for="participant3">참여자 3</label><br />
+          <input
+            type="text"
+            id="participant3"
+            name="participant3"
+            placeholder="예: 202323009"
+            pattern="\d{9}"
+            required
+          />
         </div>
 
         <br />
@@ -71,6 +99,7 @@
       </fieldset>
     </form>
   </main>
+
   <script src="js/app.js"></script>
 </body>
 </html>
