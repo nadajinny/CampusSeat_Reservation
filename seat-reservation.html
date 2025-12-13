@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>열람실 좌석 예약</title>
+</head>
+<body>
+  <header>
+    <h1>열람실 좌석 예약</h1>
+    <nav>
+      <a href="dashboard.html">메뉴로 돌아가기</a>
+    </nav>
+  </header>
+
+  <main>
+    <form id="seat-form">
+      <fieldset>
+        <legend>좌석 예약 정보</legend>
+
+        <div>
+          <label for="date">날짜</label><br />
+          <input type="date" id="date" name="date" required />
+        </div>
+
+        <br />
+
+        <div>
+          <span>좌석 선택 방식</span><br />
+          <label>
+            <input type="radio" name="seatType" value="manual" required />
+            직접 선택
+          </label>
+          <label>
+            <input type="radio" name="seatType" value="random" />
+            랜덤 배정
+          </label>
+        </div>
+
+        <br />
+
+        <div>
+          <label for="seat">좌석 번호 (직접 선택 시)</label><br />
+          <select id="seat" name="seat">
+            <option value="">선택</option>
+            <option>1</option>
+            <option>2</option>
+            <option>3</option>
+          </select>
+        </div>
+
+        <br />
+
+        <div>
+          <label for="time">시간 (2시간)</label><br />
+          <select id="time" name="time" required>
+            <option value="">선택</option>
+            <option>09:00 ~ 11:00</option>
+            <option>11:00 ~ 13:00</option>
+            <option>13:00 ~ 15:00</option>
+            <option>15:00 ~ 17:00</option>
+            <option>16:00 ~ 18:00</option>
+          </select>
+        </div>
+
+        <br />
+
+        <button type="submit">예약 제출</button>
+      </fieldset>
+    </form>
+  </main>
+</body>
+</html>
