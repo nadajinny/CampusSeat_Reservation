@@ -17,7 +17,37 @@ Why use Pydantic?
 - Easy serialization to/from JSON
 """
 
+from typing import Optional, Any
 from pydantic import BaseModel, Field
+
+
+# ---------------------------------------------------------------------------
+# Common API Response Format
+# ---------------------------------------------------------------------------
+
+class ApiResponse(BaseModel):
+    """
+    공통 API 응답 포맷
+
+    모든 API 응답은 이 포맷을 따릅니다.
+
+    성공 시:
+        {
+            "is_success": true,
+            "code": null,
+            "payload": { ... }
+        }
+
+    실패 시:
+        {
+            "is_success": false,
+            "code": "ERROR_CODE",
+            "payload": { "message": "..." }
+        }
+    """
+    is_success: bool = Field(..., description="요청 성공 여부")
+    code: Optional[str] = Field(None, description="에러 코드 (성공 시 null)")
+    payload: Any = Field(..., description="응답 데이터 또는 에러 상세")
 
 
 # ---------------------------------------------------------------------------
