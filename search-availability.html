@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>예약 가능 시간 조회</title>
+</head>
+<body>
+  <header>
+    <h1>예약 가능 시간 조회</h1>
+    <nav>
+      <a href="dashboard.html">메뉴로 돌아가기</a>
+    </nav>
+  </header>
+
+  <main>
+    <form id="search-availability-form">
+      <fieldset>
+        <legend>조회 조건</legend>
+
+        <div>
+          <label for="date">날짜</label><br />
+          <input type="date" id="date" name="date" required />
+        </div>
+
+        <br />
+
+        <div>
+          <span>시설 유형</span><br />
+          <label>
+            <input type="radio" name="facilityType" value="MEETING_ROOM" required />
+            회의실
+          </label>
+          <label>
+            <input type="radio" name="facilityType" value="SEAT" />
+            열람실 좌석
+          </label>
+        </div>
+
+        <br />
+
+        <button type="submit">조회</button>
+      </fieldset>
+    </form>
+
+    <section>
+      <h2>조회 결과</h2>
+
+      <table border="1">
+        <thead>
+          <tr>
+            <th>시설</th>
+            <th>번호</th>
+            <th>시간</th>
+            <th>상태</th>
+            <th>예약</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- 예시 -->
+          <tr>
+            <td>회의실</td>
+            <td>1</td>
+            <td>09:00 ~ 10:00</td>
+            <td>가능</td>
+            <td><button>예약</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>
