@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>회의실 예약</title>
+</head>
+<body>
+  <header>
+    <h1>회의실 예약</h1>
+    <nav>
+      <a href="dashboard.html">메뉴로 돌아가기</a>
+    </nav>
+  </header>
+
+  <main>
+    <form id="meeting-room-form">
+      <fieldset>
+        <legend>회의실 예약 정보</legend>
+
+        <div>
+          <label for="room">회의실 번호</label><br />
+          <select id="room" name="room" required>
+            <option value="">선택</option>
+            <option value="1">1번</option>
+            <option value="2">2번</option>
+            <option value="3">3번</option>
+          </select>
+        </div>
+
+        <br />
+
+        <div>
+          <label for="date">날짜</label><br />
+          <input type="date" id="date" name="date" required />
+        </div>
+
+        <br />
+
+        <div>
+          <label for="time">시간 (1시간)</label><br />
+          <select id="time" name="time" required>
+            <option value="">선택</option>
+            <option>09:00 ~ 10:00</option>
+            <option>10:00 ~ 11:00</option>
+            <option>11:00 ~ 12:00</option>
+            <option>13:00 ~ 14:00</option>
+            <option>14:00 ~ 15:00</option>
+            <option>15:00 ~ 16:00</option>
+            <option>16:00 ~ 17:00</option>
+            <option>17:00 ~ 18:00</option>
+          </select>
+        </div>
+
+        <br />
+
+        <div>
+          <label for="participants">참여자 명단 (3명 이상)</label><br />
+          <textarea
+            id="participants"
+            name="participants"
+            rows="4"
+            placeholder="학번 또는 이름 입력"
+            required
+          ></textarea>
+        </div>
+
+        <br />
+
+        <button type="submit">예약 제출</button>
+      </fieldset>
+    </form>
+  </main>
+</body>
+</html>
