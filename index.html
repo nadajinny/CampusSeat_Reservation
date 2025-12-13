@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>회의실 및 좌석 예약 시스템</title>
+</head>
+<body>
+  <!-- 공통 헤더 -->
+  <header>
+    <h1>회의실 및 좌석 예약 시스템</h1>
+    <nav>
+      <ul>
+        <li><a href="#student-search-availability">예약 가능 시간 조회</a></li>
+        <li><a href="#meeting-room-reservation">회의실 예약</a></li>
+        <li><a href="#seat-reservation">좌석 예약</a></li>
+        <li><a href="#my-reservations">내 예약 관리</a></li>
+        <li><a href="#admin-view-all-reservations">관리자 - 전체 예약 조회</a></li>
+        <li><a href="#admin-modify-reservation">관리자 - 예약 수정</a></li>
+      </ul>
+    </nav>
+    <!-- 로그인/역할 표시 영역 (학생/관리자) -->
+    <section id="user-info">
+      <p>현재 로그인: <strong>학생 / 관리자</strong> (표시용)</p>
+    </section>
+  </header>
+
+  <main>
+    <!-- 3.2.1 Search Availability (예약 가능 시간 조회) -->
+    <section id="student-search-availability">
+      <h2>예약 가능 시간 조회</h2>
+
+      <form id="search-availability-form">
+        <fieldset>
+          <legend>조회 조건</legend>
+
+          <!-- 날짜 선택 -->
+          <div class="form-row">
+            <label for="availability-date">날짜 선택</label>
+            <input type="date" id="availability-date" name="date" required />
+          </div>
+
+          <!-- 시설 유형 선택 (회의실 / 좌석) -->
+          <div class="form-row">
+            <span>시설 유형</span>
+            <label>
+              <input type="radio" name="facilityType" value="MEETING_ROOM" required />
+              회의실
+            </label>
+            <label>
+              <input type="radio" name="facilityType" value="SEAT" />
+              좌석
+            </label>
+          </div>
+
+          <!-- 조회 버튼 -->
+          <div class="form-row">
+            <button type="submit">예약 가능 시간 조회</button>
+          </div>
+        </fieldset>
+      </form>
+
+      <!-- 조회 결과 영역 -->
+      <section id="availability-result-section">
+        <h3>예약 가능한 시간대 목록</h3>
+        <p>※ 운영시간: 09:00 ~ 18:00</p>
+
+        <!-- 시설/시간대 결과 테이블 (예시 구조) -->
+        <table id="availability-table" border="1">
+          <thead>
+            <tr>
+              <th>시설 유형</th>
+              <th>시설 번호 / 좌석 번호</th>
+              <th>시작 시간</th>
+              <th>종료 시간</th>
+              <th>예약 가능 여부</th>
+              <th>예약 진행</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- JS로 동적 채우기용: 현재는 구조만 -->
+            <!--
+            <tr>
+              <td>회의실</td>
+              <td>1번 회의실</td>
+              <td>09:00</td>
+              <td>10:00</td>
+              <td>가능</td>
+              <td><button>예약하기</button></td>
+            </tr>
+            -->
+          </tbody>
+        </table>
+
+        <!-- 에러/안내 메시지 영역 -->
+        <div id="availability-message">
+          <!-- 예: 시설 미선택, 예약 불가일 경우 메시지 -->
+          <!-- “시설을 선택하세요” / “해당 날짜에 예약 가능한 시간이 없습니다.” -->
+        </div>
+      </section>
+    </section>
+
+    <hr />
+
+    <!-- 3.2.2 Meeting Room Reservation (회의실 예약) -->
+    <section id="meeting-room-reservation">
+      <h2>회의실 예약</h2>
+
+      <form id="meeting-room-form">
+        <fieldset>
+          <legend>회의실 예약 정보</legend>
+
+          <!-- 회의실 번호 선택 -->
+          <div class="form-row">
+            <label for="meeting-room-id">회의실 번호</label>
+            <select id="meeting-room-id" name="roomID" required>
+              <option value="">선택하세요</option>
+              <option value="1">1번 회의실</option>
+              <option value="2">2번 회의실</option>
+              <option value="3">3번 회의실</option>
+            </select>
+          </div>
+
+          <!-- 날짜 선택 -->
+          <div class="form-row">
+            <label for="meeting-date">예약 날짜</label>
+            <input type="date" id="meeting-date" name="date" required />
+          </div>
+
+          <!-- 1시간 단위 슬롯 선택 -->
+          <div class="form-row">
+            <label for="meeting-slot">시간 슬롯 (1시간 단위)</label>
+            <select id="meeting-slot" name="timeSlot" required>
+              <option value="">선택하세요</option>
+              <option value="09:00-10:00">09:00 ~ 10:00</option>
+              <option value="10:00-11:00">10:00 ~ 11:00</option>
+              <option value="11:00-12:00">11:00 ~ 12:00</option>
+              <option value="12:00-13:00">12:00 ~ 13:00</option>
+              <option value="13:00-14:00">13:00 ~ 14:00</option>
+              <option value="14:00-15:00">14:00 ~ 15:00</option>
+              <option value="15:00-16:00">15:00 ~ 16:00</option>
+              <option value="16:00-17:00">16:00 ~ 17:00</option>
+              <option value="17:00-18:00">17:00 ~ 18:00</option>
+            </select>
+          </div>
+
+          <!-- 참여자 명단 입력 (3명 이상) -->
+          <div class="form-row">
+            <label for="participant-list">참여자 명단 (학번 또는 이름, 3명 이상)</label>
+            <textarea
+              id="participant-list"
+              name="participantList"
+              rows="4"
+              placeholder="예: 202323007 이진선, 2022xxxxx 홍길동, ..."
+              required
+            ></textarea>
+          </div>
+
+          <!-- 안내 텍스트 -->
+          <p>
+            ※ 회의실 예약 조건<br />
+            - 최소 3명 이상 참여자<br />
+            - 일일 최대 2시간, 주간 최대 5시간<br />
+            - 동일 시간대 다른 시설 중복 예약 불가
+          </p>
+
+          <!-- 제출 버튼 -->
+          <div class="form-row">
+            <button type="submit">회의실 예약 제출</button>
+          </div>
+        </fieldset>
+      </form>
+
+      <!-- 예약 처리 결과/오류 메시지 영역 -->
+      <div id="meeting-room-message">
+        <!-- 예: “회의실 예약이 완료되었습니다” / “최소 3명 이상 입력해야 합니다” / “이미 예약된 시간입니다” -->
+      </div>
+
+      <!-- 예약 완료 후 이동 버튼 영역 (UI 구조만) -->
+      <div id="meeting-room-next-actions">
+        <button type="button">내 예약으로 이동</button>
+        <button type="button">계속 예약하기</button>
+      </div>
+    </section>
+
+    <hr />
+
+    <!-- 3.2.3 Seat Reservation (열람실 좌석 예약) -->
+    <section id="seat-reservation">
+      <h2>열람실 좌석 예약</h2>
+
+      <form id="seat-reservation-form">
+        <fieldset>
+          <legend>좌석 예약 정보</legend>
+
+          <!-- 날짜 선택 -->
+          <div class="form-row">
+            <label for="seat-date">예약 날짜</label>
+            <input type="date" id="seat-date" name="date" required />
+          </div>
+
+          <!-- 좌석 선택 / 랜덤 배정 -->
+          <div class="form-row">
+            <span>좌석 선택 방식</span>
+            <label>
+              <input type="radio" name="seatSelectionType" value="manual" required />
+              직접 좌석 선택
+            </label>
+            <label>
+              <input type="radio" name="seatSelectionType" value="random" />
+              랜덤 배정
+            </label>
+          </div>
+
+          <!-- 직접 좌석 선택 드롭다운 -->
+          <div class="form-row">
+            <label for="seat-id">좌석 번호 (직접 선택 시)</label>
+            <select id="seat-id" name="seatID">
+              <option value="">선택하세요</option>
+              <!-- 좌석 1~70 예시 -->
+              <option value="1">1번 좌석</option>
+              <option value="2">2번 좌석</option>
+              <option value="3">3번 좌석</option>
+              <!-- ... -->
+            </select>
+          </div>
+
+          <!-- 2시간 단위 슬롯 선택 -->
+          <div class="form-row">
+            <label for="seat-slot">시간 슬롯 (2시간 단위)</label>
+            <select id="seat-slot" name="timeSlot" required>
+              <option value="">선택하세요</option>
+              <option value="09:00-11:00">09:00 ~ 11:00</option>
+              <option value="11:00-13:00">11:00 ~ 13:00</option>
+              <option value="13:00-15:00">13:00 ~ 15:00</option>
+              <option value="15:00-17:00">15:00 ~ 17:00</option>
+              <option value="16:00-18:00">16:00 ~ 18:00</option>
+            </select>
+          </div>
+
+          <p>
+            ※ 열람실 좌석 예약 조건<br />
+            - 하루 최대 4시간 예약 가능<br />
+            - 동일 시간대 중복 예약 불가
+          </p>
+
+          <!-- 제출 버튼 -->
+          <div class="form-row">
+            <button type="submit">좌석 예약 제출</button>
+          </div>
+        </fieldset>
+      </form>
+
+      <!-- 결과/오류 메시지 영역 -->
+      <div id="seat-reservation-message">
+        <!-- 예: “좌석 예약이 완료되었습니다” / “하루 최대 4시간 예약 가능합니다.” / “동일 시간대에 이미 예약되어 있습니다.” -->
+      </div>
+    </section>
+
+    <hr />
+
+    <!-- 3.2.4 Manage Own Reservations (내 예약 관리) -->
+    <section id="my-reservations">
+      <h2>내 예약 관리</h2>
+
+      <!-- 내 예약 목록 -->
+      <section id="my-reservations-list">
+        <h3>내 예약 목록</h3>
+
+        <table id="my-reservations-table" border="1">
+          <thead>
+            <tr>
+              <th>예약 ID</th>
+              <th>시설 유형</th>
+              <th>시설 번호</th>
+              <th>예약 일시</th>
+              <th>상태</th>
+              <th>취소</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- 예시 행 (구조만) -->
+            <!--
+            <tr>
+              <td>1001</td>
+              <td>회의실</td>
+              <td>1</td>
+              <td>2025-12-10 09:00 ~ 10:00</td>
+              <td>시작 전</td>
+              <td><button>취소하기</button></td>
+            </tr>
+            -->
+          </tbody>
+        </table>
+      </section>
+
+      <!-- 메시지 영역 -->
+      <div id="my-reservations-message">
+        <!-- 예: “예약이 취소되었습니다” / “취소할 수 없습니다.” / “예약 목록을 불러올 수 없습니다.” -->
+      </div>
+    </section>
+
+    <hr />
+
+    <!-- 3.2.5 View All Reservations (관리자 – 전체 예약 조회) -->
+    <section id="admin-view-all-reservations">
+      <h2>관리자 - 전체 예약 조회</h2>
+
+      <!-- 검색 조건 입력 -->
+      <form id="admin-search-reservations-form">
+        <fieldset>
+          <legend>조회 조건</legend>
+
+          <div class="form-row">
+            <label for="admin-from-date">시작 날짜</label>
+            <input type="date" id="admin-from-date" name="fromDate" />
+          </div>
+
+          <div class="form-row">
+            <label for="admin-to-date">종료 날짜</label>
+            <input type="date" id="admin-to-date" name="toDate" />
+          </div>
+
+          <!-- 시설 유형 필터 -->
+          <div class="form-row">
+            <label for="admin-facility-type">시설 유형 필터</label>
+            <select id="admin-facility-type" name="facilityType">
+              <option value="">전체</option>
+              <option value="MEETING_ROOM">회의실</option>
+              <option value="SEAT">좌석</option>
+            </select>
+          </div>
+
+          <!-- 검색 버튼 -->
+          <div class="form-row">
+            <button type="submit">예약 조회</button>
+          </div>
+        </fieldset>
+      </form>
+
+      <!-- 조회 결과 목록 -->
+      <section id="admin-reservations-result">
+        <h3>예약 목록</h3>
+
+        <table id="admin-reservations-table" border="1">
+          <thead>
+            <tr>
+              <th>예약 ID</th>
+              <th>시설 유형</th>
+              <th>시설 번호</th>
+              <th>예약자 학번</th>
+              <th>예약 일시</th>
+              <th>참여자 명단(회의실)</th>
+              <th>예약 생성 시간</th>
+              <th>상세 보기</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- 예시 구조 -->
+            <!--
+            <tr>
+              <td>1001</td>
+              <td>회의실</td>
+              <td>1</td>
+              <td>202323007</td>
+              <td>2025-12-10 09:00 ~ 10:00</td>
+              <td>202323007, 2022xxxxx, ...</td>
+              <td>2025-12-01 10:10</td>
+              <td><button>상세</button></td>
+            </tr>
+            -->
+          </tbody>
+        </table>
+      </section>
+
+      <!-- 메시지 영역 -->
+      <div id="admin-view-message">
+        <!-- 예: “조회된 예약이 없습니다.” / “기간 입력 오류” / “예약 정보를 불러올 수 없습니다.” -->
+      </div>
+    </section>
+
+    <hr />
+
+    <!-- 3.2.6 Modify Reservation (관리자 – 예약 수정) -->
+    <section id="admin-modify-reservation">
+      <h2>관리자 - 예약 수정</h2>
+
+      <!-- 수정 대상 검색 -->
+      <form id="admin-search-target-form">
+        <fieldset>
+          <legend>수정할 예약 검색</legend>
+
+          <div class="form-row">
+            <label for="search-reservation-id">예약 ID</label>
+            <input type="text" id="search-reservation-id" name="reservationID" />
+          </div>
+
+          <div class="form-row">
+            <label for="search-student-id">학생 학번</label>
+            <input type="text" id="search-student-id" name="studentID" />
+          </div>
+
+          <div class="form-row">
+            <label for="search-facility-type">시설 유형</label>
+            <select id="search-facility-type" name="facilityType">
+              <option value="">전체</option>
+              <option value="MEETING_ROOM">회의실</option>
+              <option value="SEAT">좌석</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <label for="search-facility-id">시설 번호</label>
+            <input type="number" id="search-facility-id" name="facilityID" />
+          </div>
+
+          <div class="form-row">
+            <button type="submit">예약 검색</button>
+          </div>
+        </fieldset>
+      </form>
+
+      <!-- 검색 결과 중 선택된 예약 상세/수정 폼 -->
+      <section id="admin-modify-form-section">
+        <h3>예약 상세 및 수정</h3>
+
+        <form id="admin-modify-form">
+          <fieldset>
+            <legend>예약 정보 수정</legend>
+
+            <!-- 예약 ID (읽기 전용) -->
+            <div class="form-row">
+              <label for="modify-reservation-id">예약 ID</label>
+              <input type="text" id="modify-reservation-id" name="reservationID" readonly />
+            </div>
+
+            <!-- 학생 학번 (읽기 전용 또는 수정 가능 여부 정책에 따라) -->
+            <div class="form-row">
+              <label for="modify-student-id">예약자 학번</label>
+              <input type="text" id="modify-student-id" name="studentID" />
+            </div>
+
+            <!-- 시설 유형 -->
+            <div class="form-row">
+              <label for="modify-facility-type">시설 유형</label>
+              <select id="modify-facility-type" name="facilityType" required>
+                <option value="">선택하세요</option>
+                <option value="MEETING_ROOM">회의실</option>
+                <option value="SEAT">좌석</option>
+              </select>
+            </div>
+
+            <!-- 시설 번호 -->
+            <div class="form-row">
+              <label for="modify-facility-id">시설 번호</label>
+              <input type="number" id="modify-facility-id" name="facilityID" required />
+            </div>
+
+            <!-- 날짜 및 시간 -->
+            <div class="form-row">
+              <label for="modify-date">예약 날짜</label>
+              <input type="date" id="modify-date" name="date" required />
+            </div>
+
+            <div class="form-row">
+              <label for="modify-start-time">시작 시간</label>
+              <input type="time" id="modify-start-time" name="startTime" required />
+            </div>
+
+            <div class="form-row">
+              <label for="modify-end-time">종료 시간</label>
+              <input type="time" id="modify-end-time" name="endTime" required />
+            </div>
+
+            <!-- 회의실의 경우 참여자 명단 수정 -->
+            <div class="form-row">
+              <label for="modify-participant-list">참여자 명단 (회의실)</label>
+              <textarea
+                id="modify-participant-list"
+                name="participantList"
+                rows="4"
+                placeholder="회의실 예약일 경우에만 사용"
+              ></textarea>
+            </div>
+
+            <p>
+              ※ 수정 시 검증 항목<br />
+              - 운영시간(09:00~18:00) 준수<br />
+              - 동일 시간대 중복 예약 여부<br />
+              - 일일/주간 시간 제한 초과 여부<br />
+              - 변경된 좌석/회의실 중복 예약 여부
+            </p>
+
+            <!-- 수정/취소 버튼 -->
+            <div class="form-row">
+              <button type="submit">예약 수정 저장</button>
+              <button type="button">수정 취소</button>
+            </div>
+          </fieldset>
+        </form>
+
+        <!-- 수정 결과/오류 메시지 -->
+        <div id="admin-modify-message">
+          <!-- 예: “예약 수정이 완료되었습니다” / “예약 수정 중 오류가 발생했습니다” -->
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 회의실 및 좌석 예약 시스템</p>
+  </footer>
+</body>
+</html>
