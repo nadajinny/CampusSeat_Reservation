@@ -102,19 +102,19 @@
    git clone https://github.com/your-username/seat-room-reservation-system.git
    ```
 
-2. **Open HTML File**
+2. **Open Dashboard (or Any Screen)**
 
    ```bash
-   open index.html
+   open dashboard.html
    ```
 
-   또는 파일을 더블 클릭하여 브라우저에서 실행
+   또는 `seat-reservation.html`, `meeting-room-reservation.html` 등 원하는 화면을 더블 클릭하여 브라우저에서 바로 실행
 
 3. **(Optional) Local Server**
 
    ```bash
    python3 -m http.server 5500
-   # http://localhost:5500/index.html
+   # http://localhost:5500/dashboard.html
    ```
 
 ---
@@ -123,10 +123,17 @@
 
 ```
 .
-├── index.html        # 전체 화면 구조 (학생/관리자)
-├── README.md
-└── docs/
-    └── SRS.pdf       # Software Requirements Specification (optional)
+├── dashboard.html                # 학생/관리자 공용 대시보드
+├── login.html                    # 로그인 화면
+├── search-availability.html      # 예약 가능 시간 조회
+├── meeting-room-reservation.html # 회의실 예약
+├── seat-reservation.html         # 열람실 좌석 예약
+├── my-reservations.html          # 내 예약 관리
+├── css/
+│   └── style.css
+├── js/
+│   └── app.js
+└── README.md
 ```
 
 ---
