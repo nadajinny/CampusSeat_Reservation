@@ -39,7 +39,7 @@ def create_meeting_room_reservation(
     # 현재는 임시로 하드코딩
     student_id = 202312345
 
-    # 검증 1: 운영 시간 확인
+    # 검증 1: 운영 시간 확인 (09:00-18:00)
     operation_start = dt_time(
         constants.OperationHours.START_HOUR,
         constants.OperationHours.START_MINUTE
@@ -49,7 +49,11 @@ def create_meeting_room_reservation(
         constants.OperationHours.END_MINUTE
     )
 
-    if request.start_time < operation_start or request.end_time > operation_end:
+    # time 객체를 timezone 제거 후 비교
+    start_time_obj = request.start_time.replace(tzinfo=None) if hasattr(request.start_time, 'tzinfo') else request.start_time
+    end_time_obj = request.end_time.replace(tzinfo=None) if hasattr(request.end_time, 'tzinfo') else request.end_time
+
+    if start_time_obj < operation_start or end_time_obj > operation_end:
         return schemas.ApiResponse(
             is_success=False,
             code=constants.ErrorCode.TIME_OUT_OF_OPERATION_HOURS,

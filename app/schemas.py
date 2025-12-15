@@ -63,16 +63,12 @@ class SeatCreate(BaseModel):
 
     Example request body:
         {
-            "seat_id": 1,
-            "is_active": true
+            "seat_id": 1
         }
     """
 
     # seat_id is required, must be >= 1
     seat_id: int = Field(..., ge=1, description="Unique seat identifier (must be >= 1)")
-
-    # is_active is optional, defaults to True
-    is_active: bool = Field(default=True, description="Whether the seat is active")
 
 
 # ---------------------------------------------------------------------------
@@ -87,13 +83,11 @@ class SeatResponse(BaseModel):
 
     Example response:
         {
-            "seat_id": 1,
-            "is_active": true
+            "seat_id": 1
         }
     """
 
     seat_id: int = Field(..., description="Unique seat identifier")
-    is_active: bool = Field(..., description="Whether the seat is active")
 
     # ---------------------------------------------------------------------------
     # Pydantic Configuration
