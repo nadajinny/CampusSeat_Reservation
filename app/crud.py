@@ -23,6 +23,7 @@ Why pure functions instead of classes?
 """
 
 from sqlalchemy.orm import Session
+from datetime import datetime, timedelta
 
 from . import models, schemas
 
@@ -128,3 +129,195 @@ def create_seat(db: Session, seat: schemas.SeatCreate) -> models.Seat:
     db.refresh(db_seat)
 
     return db_seat
+
+
+# ---------------------------------------------------------------------------
+# Meeting Room Reservation Operations
+# ---------------------------------------------------------------------------
+
+def check_room_conflict(
+    db: Session,
+    room_id: int,
+    start_time: datetime
+) -> bool:
+    """
+    회의실 중복 예약 확인
+
+    Args:
+        db: 데이터베이스 세션
+        room_id: 회의실 ID (1-3)
+        start_time: 시작 시간
+
+    Returns:
+        충돌이 있으면 True, 없으면 False
+    """
+    conflict = db.query(models.Reservation).filter(
+        models.Reservation.meeting_room_id == room_id,
+        models.Reservation.start_time == start_time,
+        models.Reservation.status == models.ReservationStatus.RESERVED
+    ).first()
+
+    return conflict is not None
+
+
+def check_user_daily_meeting_limit(
+    db: Session,
+    student_id: int,
+    target_date: datetime
+) -> int:
+    """
+    사용자의 해당 날짜 회의실 예약 총 시간(분) 계산
+
+    Args:
+        db: 데이터베이스 세션
+        student_id: 학번
+        target_date: 대상 날짜
+
+    Returns:
+        총 예약 시간(분) - 제한: 120분 = 2시간
+    """
+    start_of_day = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_day = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    reservations = db.query(models.Reservation).filter(
+        models.Reservation.student_id == student_id,
+        models.Reservation.meeting_room_id.isnot(None),  # 회의실만
+        models.Reservation.status == models.ReservationStatus.RESERVED,
+        models.Reservation.start_time >= start_of_day,
+        models.Reservation.start_time <= end_of_day
+    ).all()
+
+    total_minutes = sum(
+        (r.end_time - r.start_time).total_seconds() / 60
+        for r in reservations
+    )
+
+    return int(total_minutes)
+
+
+def check_user_weekly_meeting_limit(
+    db: Session,
+    student_id: int,
+    target_date: datetime
+) -> int:
+    """
+    사용자의 해당 주 회의실 예약 총 시간(분) 계산
+
+    Args:
+        db: 데이터베이스 세션
+        student_id: 학번
+        target_date: 대상 주의 임의 날짜
+
+    Returns:
+        총 예약 시간(분) - 제한: 300분 = 5시간
+    """
+    # 해당 주의 월요일 계산
+    start_of_week = target_date - timedelta(days=target_date.weekday())
+    start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # 해당 주의 일요일 계산
+    end_of_week = start_of_week + timedelta(days=6, hours=23, minutes=59, seconds=59)
+
+    reservations = db.query(models.Reservation).filter(
+        models.Reservation.student_id == student_id,
+        models.Reservation.meeting_room_id.isnot(None),  # 회의실만
+        models.Reservation.status == models.ReservationStatus.RESERVED,
+        models.Reservation.start_time >= start_of_week,
+        models.Reservation.start_time <= end_of_week
+    ).all()
+
+    total_minutes = sum(
+        (r.end_time - r.start_time).total_seconds() / 60
+        for r in reservations
+    )
+
+    return int(total_minutes)
+
+
+def check_overlap_with_other_facility(
+    db: Session,
+    student_id: int,
+    start_time: datetime
+) -> bool:
+    """
+    동일 시간에 다른 시설 예약이 있는지 확인
+
+    Args:
+        db: 데이터베이스 세션
+        student_id: 학번
+        start_time: 확인할 시작 시간
+
+    Returns:
+        겹치는 예약이 있으면 True, 없으면 False
+    """
+    overlap = db.query(models.Reservation).filter(
+        models.Reservation.student_id == student_id,
+        models.Reservation.status == models.ReservationStatus.RESERVED,
+        models.Reservation.start_time == start_time
+    ).first()
+
+    return overlap is not None
+
+
+def create_meeting_room_reservation(
+    db: Session,
+    student_id: int,
+    room_id: int,
+    start_time: datetime,
+    end_time: datetime,
+    participants: list
+) -> models.Reservation:
+    """
+    회의실 예약 생성
+
+    Args:
+        db: 데이터베이스 세션
+        student_id: 예약자 학번
+        room_id: 회의실 ID (1-3)
+        start_time: 시작 시간
+        end_time: 종료 시간
+        participants: 참여자 목록 [{"student_id": "...", "name": "..."}]
+
+    Returns:
+        생성된 Reservation 객체
+
+    처리 과정:
+        1. 사용자가 DB에 없으면 생성 (upsert)
+        2. 예약 레코드 생성
+        3. 참여자 레코드 생성
+        4. 트랜잭션 커밋
+    """
+    # 1. User 존재 확인 및 생성 (upsert)
+    user = db.query(models.User).filter(models.User.student_id == student_id).first()
+    if not user:
+        user = models.User(student_id=student_id)
+        db.add(user)
+        db.flush()
+
+    # 2. Reservation 생성
+    reservation = models.Reservation(
+        student_id=student_id,
+        meeting_room_id=room_id,
+        seat_id=None,
+        start_time=start_time,
+        end_time=end_time,
+        is_owner=True,
+        status=models.ReservationStatus.RESERVED
+    )
+    db.add(reservation)
+    db.flush()  # reservation_id 획득
+
+    # 3. Participants 생성
+    for p in participants:
+        participant = models.ReservationParticipant(
+            reservation_id=reservation.reservation_id,
+            participant_student_id=int(p.get("student_id")) if p.get("student_id") else None,
+            participant_name=p.get("name")
+        )
+        db.add(participant)
+
+    # 4. 커밋
+    db.commit()
+    db.refresh(reservation)
+
+    return reservation
