@@ -27,6 +27,7 @@ from sqlalchemy import (
     ForeignKey,
     Enum,
     CheckConstraint,
+    Index,
 )
 from sqlalchemy.orm import relationship
 
@@ -186,6 +187,11 @@ class Reservation(Base):
             "(meeting_room_id IS NULL AND seat_id IS NOT NULL)",
             name="check_exclusive_facility"
         ),
+
+        # 조회 성능 인덱스
+        Index('idx_student_start', 'student_id', 'start_time'),
+        Index('idx_room_start', 'meeting_room_id', 'start_time', 'status'),
+        Index('idx_seat_start', 'seat_id', 'start_time', 'status'),
     )
 
     # ---------------------------------------------------------------------------
@@ -247,7 +253,53 @@ class Reservation(Base):
     # 좌석
     seat = relationship("Seat")
 
+    # 참여자 (회의실 예약만)
+    participants = relationship("ReservationParticipant", back_populates="reservation")
+
     def __repr__(self):
         facility = f"room={self.meeting_room_id}" if self.meeting_room_id else f"seat={self.seat_id}"
         return f"<Reservation(id={self.reservation_id}, {facility}, status={self.status})>"
-    
+
+
+# ---------------------------------------------------------------------------
+# ReservationParticipant Model (회의실 참여자)
+# ---------------------------------------------------------------------------
+class ReservationParticipant(Base):
+    """
+    회의실 예약 참여자 테이블
+
+    회의실 예약 시 참여자 명단을 저장합니다.
+    좌석 예약에는 사용하지 않습니다.
+
+    Columns:
+        id: 참여자 레코드 ID (PK, 자동 증가)
+        reservation_id: 예약 ID (FK → reservations)
+        participant_student_id: 참여자 학번
+        participant_name: 참여자 이름
+    """
+
+    __tablename__ = "reservation_participants"
+
+    # 참여자 레코드 ID
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # 예약 ID (FK)
+    reservation_id = Column(
+        Integer,
+        ForeignKey("reservations.reservation_id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    # 참여자 학번
+    participant_student_id = Column(Integer, nullable=True)
+
+    # 참여자 이름
+    participant_name = Column(String(50), nullable=True)
+
+    # ---------------------------------------------------------------------------
+    # Relationships
+    # ---------------------------------------------------------------------------
+    reservation = relationship("Reservation", back_populates="participants")
+
+    def __repr__(self):
+        return f"<ReservationParticipant(reservation_id={self.reservation_id}, name={self.participant_name})>"

@@ -17,7 +17,8 @@ Why use Pydantic?
 - Easy serialization to/from JSON
 """
 
-from typing import Optional, Any
+from typing import Optional, Any, List
+from datetime import date, time
 from pydantic import BaseModel, Field
 
 

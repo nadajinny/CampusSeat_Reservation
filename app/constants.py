@@ -63,9 +63,19 @@ class ReservationType:
 
 
 class ReservationStatus:
-    """Reservation Status Constants"""
-    RESERVED = "RESERVED"
-    CANCELED = "CANCELED"
+    """
+    Reservation Status Constants
+
+    Status Flow:
+    - RESERVED: Initial state when reservation is created
+    - IN_USE: User has checked in and is currently using the facility
+    - COMPLETED: Reservation time has ended, used successfully
+    - CANCELED: Reservation was canceled before use
+    """
+    RESERVED = "RESERVED"      # Reservation created, waiting for use
+    IN_USE = "IN_USE"          # Currently being used
+    COMPLETED = "COMPLETED"    # Successfully completed
+    CANCELED = "CANCELED"      # Canceled by user
 
 
 class FacilityConstants:
