@@ -321,3 +321,45 @@ def create_meeting_room_reservation(
     db.refresh(reservation)
 
     return reservation
+
+
+# ---------------------------------------------------------------------------
+# User Operations (Authentication support)
+# ---------------------------------------------------------------------------
+
+def get_user(db: Session, student_id: int) -> models.User | None:
+    """
+    Fetch a user by student ID.
+
+    Args:
+        db: Database session
+        student_id: 9-digit identifier
+    """
+
+    return db.query(models.User).filter(models.User.student_id == student_id).first()
+
+
+def upsert_user(
+    db: Session,
+    *,
+    student_id: int,
+) -> models.User:
+    """
+    Create the user if they don't exist yet, otherwise return existing.
+    """
+
+    user = get_user(db, student_id)
+    if user:
+        user.last_login_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        db.commit()
+        db.refresh(user)
+        return user
+
+    user = models.User(
+        student_id=student_id,
+        last_login_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user

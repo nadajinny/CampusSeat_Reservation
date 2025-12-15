@@ -21,7 +21,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from .database import engine, SessionLocal, Base
-from .routers import seats, meeting_rooms
+from .routers import seats, meeting_rooms, auth
 from . import crud, schemas, models
 
 
@@ -150,6 +150,7 @@ app = FastAPI(
 # This adds all the endpoints from the routers to our app
 app.include_router(seats.router)
 app.include_router(meeting_rooms.router)
+app.include_router(auth.router)
 
 
 # ---------------------------------------------------------------------------

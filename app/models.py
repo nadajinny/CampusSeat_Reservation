@@ -56,40 +56,24 @@ class ReservationStatus(str, PyEnum):
 # ---------------------------------------------------------------------------
 class User(Base):
     """
-    학생 계정 테이블
+    학생 계정 테이블 (로그인 타임스탬프만 저장)
 
     Columns:
         student_id: 학번 (PK)
-        name: 학생 이름
-        department: 소속 학과
-        role: 권한 구분 (student, admin)
+        last_login_at: 마지막 로그인 시각
     """
 
     __tablename__ = "users"
 
-    # 학번 - Primary Key
     student_id = Column(Integer, primary_key=True, autoincrement=False)
+    # Datetime is stored as fixed-length string (YYYY-MM-DD HH:MM:SS)
+    last_login_at = Column(String(19), nullable=False)
 
-    # 학생 이름
-    name = Column(String(50), nullable=True)
-
-    # 소속 학과
-    department = Column(String(100), nullable=True)
-
-    # 권한 구분 (student, admin)
-    role = Column(
-        Enum(UserRole, name="user_roles_enum"),
-        nullable=False,
-        default=UserRole.STUDENT
-    )
-
-    # ---------------------------------------------------------------------------
-    # Relationships
-    # ---------------------------------------------------------------------------
+    # 예약과의 관계 (필요시 사용)
     reservations = relationship("Reservation", back_populates="user")
 
     def __repr__(self):
-        return f"<User(student_id={self.student_id}, name={self.name}, role={self.role})>"
+        return f"<User(student_id={self.student_id}, last_login_at={self.last_login_at})>"
 
 
 # ---------------------------------------------------------------------------

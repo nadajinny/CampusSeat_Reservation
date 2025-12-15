@@ -17,9 +17,9 @@ Why use Pydantic?
 - Easy serialization to/from JSON
 """
 
-from typing import Optional, Any, List
+from typing import Optional, Any, List, Union
 from datetime import date as Date, time as Time
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -151,3 +151,68 @@ class MeetingRoomReservationResponse(BaseModel):
     status: str = Field(..., description="예약 상태 (RESERVED)")
 
     model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Authentication Schemas
+# ---------------------------------------------------------------------------
+
+
+class LoginRequest(BaseModel):
+    """
+    Schema for login requests.
+
+    Accepts 9-digit student IDs as string or integer.
+    """
+
+    student_id: str = Field(
+        ...,
+        description="9-digit student ID used as login credential (string or number)",
+        examples=["202312345"],
+    )
+
+    @field_validator("student_id", mode="before")
+    @classmethod
+    def normalize_student_id(cls, value: str | int) -> str:
+        """
+        Accept either string or integer input and normalize to stripped string.
+        Actual validation happens in the router so we can control errors.
+        """
+
+        if isinstance(value, int):
+            return str(value)
+        if isinstance(value, str):
+            return value.strip()
+        raise TypeError("student_id must be a string or integer")
+
+
+class TokenPayload(BaseModel):
+    """Payload returned when authentication succeeds."""
+
+    access_token: str = Field(..., description="Opaque access token")
+    student_id: int = Field(..., description="Authenticated student ID")
+
+
+class ErrorPayload(BaseModel):
+    """Payload shape for error responses."""
+
+    message: str
+
+
+class LoginSuccessResponse(BaseModel):
+    """Response body for successful login attempts."""
+
+    is_success: bool = Field(default=True, description="Indicates the request succeeded")
+    code: Optional[str] = Field(default=None, description="Optional application code")
+    payload: TokenPayload
+
+
+class LoginErrorResponse(BaseModel):
+    """Response body for failed login attempts."""
+
+    is_success: bool = Field(default=False, description="Indicates the request failed")
+    code: str = Field(..., description="Application-specific error code")
+    payload: ErrorPayload
+
+
+LoginResponse = Union[LoginSuccessResponse, LoginErrorResponse]
