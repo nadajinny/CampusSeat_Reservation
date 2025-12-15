@@ -70,17 +70,32 @@ async def lifespan(app: FastAPI):
 
 def initialize_seats():
     """
-    Initialize seats 1-70 if they don't exist.
+    Initialize seats 1-70 and meeting rooms 1-3 if they don't exist.
 
-    This function runs on every startup but only creates seats
-    if the database is empty. This ensures we always have seats
-    available for reservation.
+    This function runs on every startup but only creates data
+    if the database is empty.
     """
     # Create a new database session
     db = SessionLocal()
 
     try:
-        # Check if any seats exist
+        # 1. Initialize meeting rooms (1-3)
+        meeting_rooms_count = db.query(models.MeetingRoom).count()
+        if meeting_rooms_count == 0:
+            print("📝 No meeting rooms found. Creating meeting rooms 1-3...")
+            for room_id in range(1, 4):
+                room = models.MeetingRoom(
+                    room_id=room_id,
+                    min_capacity=3,
+                    max_capacity=None
+                )
+                db.add(room)
+            db.commit()
+            print("✅ Successfully created 3 meeting rooms!")
+        else:
+            print(f"ℹ️  Found {meeting_rooms_count} meeting rooms. Skipping initialization.")
+
+        # 2. Initialize seats (1-70)
         seats_count = crud.get_seats_count(db)
 
         if seats_count == 0:
@@ -88,13 +103,16 @@ def initialize_seats():
 
             # Create seats with IDs from 1 to 70
             for seat_id in range(1, 71):
-                seat_data = schemas.SeatCreate(seat_id=seat_id, is_active=True)
+                seat_data = schemas.SeatCreate(seat_id=seat_id)
                 crud.create_seat(db, seat_data)
 
             print("✅ Successfully created 70 seats!")
         else:
             print(f"ℹ️  Found {seats_count} existing seats. Skipping initialization.")
 
+    except Exception as e:
+        print(f"❌ Error during initialization: {e}")
+        db.rollback()
     finally:
         # Always close the session
         db.close()
