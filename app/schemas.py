@@ -106,3 +106,54 @@ class SeatResponse(BaseModel):
         # With this:    SeatResponse.model_validate(seat)  # Works perfectly!
         "from_attributes": True
     }
+
+
+# ---------------------------------------------------------------------------
+# Meeting Room Reservation Schemas
+# ---------------------------------------------------------------------------
+
+class ParticipantBase(BaseModel):
+    """
+    회의실 예약 참여자 정보
+
+    학번 또는 이름 중 최소 하나는 제공되어야 합니다.
+    """
+    student_id: Optional[str] = Field(None, description="학번 (9자리)")
+    name: Optional[str] = Field(None, description="참여자 이름")
+
+
+class MeetingRoomReservationCreate(BaseModel):
+    """
+    회의실 예약 생성 요청
+
+    검증:
+    - room_id: 1-3 범위
+    - date: YYYY-MM-DD 형식
+    - start_time, end_time: HH:MM 형식
+    - participants: 최소 3명
+    """
+    room_id: int = Field(..., ge=1, le=3, description="회의실 ID (1-3)")
+    date: date = Field(..., description="예약 날짜 (YYYY-MM-DD)")
+    start_time: time = Field(..., description="시작 시간 (HH:MM)")
+    end_time: time = Field(..., description="종료 시간 (HH:MM)")
+    participants: List[ParticipantBase] = Field(
+        ...,
+        min_length=3,
+        description="참여자 목록 (최소 3명)"
+    )
+
+
+class MeetingRoomReservationResponse(BaseModel):
+    """
+    회의실 예약 응답
+
+    예약 생성 성공 시 반환되는 데이터
+    """
+    reservation_id: int = Field(..., description="예약 ID")
+    meeting_room_id: int = Field(..., description="회의실 ID")
+    date: date = Field(..., description="예약 날짜")
+    start_time: time = Field(..., description="시작 시간")
+    end_time: time = Field(..., description="종료 시간")
+    status: str = Field(..., description="예약 상태 (RESERVED)")
+
+    model_config = {"from_attributes": True}

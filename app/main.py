@@ -22,7 +22,7 @@ from fastapi import FastAPI
 
 from .database import engine, SessionLocal, Base
 from .routers import seats
-from . import crud, schemas
+from . import crud, schemas, models
 
 
 # ---------------------------------------------------------------------------
