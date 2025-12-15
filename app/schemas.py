@@ -18,7 +18,7 @@ Why use Pydantic?
 """
 
 from typing import Optional, Any, List
-from datetime import date, time
+from datetime import date as Date, time as Time
 from pydantic import BaseModel, Field
 
 
@@ -133,9 +133,9 @@ class MeetingRoomReservationCreate(BaseModel):
     - participants: 최소 3명
     """
     room_id: int = Field(..., ge=1, le=3, description="회의실 ID (1-3)")
-    date: date = Field(..., description="예약 날짜 (YYYY-MM-DD)")
-    start_time: time = Field(..., description="시작 시간 (HH:MM)")
-    end_time: time = Field(..., description="종료 시간 (HH:MM)")
+    date: Date = Field(..., description="예약 날짜 (YYYY-MM-DD)")
+    start_time: Time = Field(..., description="시작 시간 (HH:MM)")
+    end_time: Time = Field(..., description="종료 시간 (HH:MM)")
     participants: List[ParticipantBase] = Field(
         ...,
         min_length=3,
@@ -151,9 +151,9 @@ class MeetingRoomReservationResponse(BaseModel):
     """
     reservation_id: int = Field(..., description="예약 ID")
     meeting_room_id: int = Field(..., description="회의실 ID")
-    date: date = Field(..., description="예약 날짜")
-    start_time: time = Field(..., description="시작 시간")
-    end_time: time = Field(..., description="종료 시간")
+    date: Date = Field(..., description="예약 날짜")
+    start_time: Time = Field(..., description="시작 시간")
+    end_time: Time = Field(..., description="종료 시간")
     status: str = Field(..., description="예약 상태 (RESERVED)")
 
     model_config = {"from_attributes": True}
