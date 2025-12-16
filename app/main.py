@@ -16,106 +16,37 @@ Then visit:
     http://127.0.0.1:8000/redoc (ReDoc)
 """
 
-from contextlib import asynccontextmanager
-
+# app/main.py
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from app.database import SessionLocal, engine, Base
+from app import models
+from app.init_db import initialize_data
+from app.api.v1 import api_router  # (예시) 라우터들이 모여있는 곳
 
-from .database import engine, SessionLocal, Base
-from .routers import seats, meeting_rooms, auth
-from . import crud, schemas, models
-
-
-# ---------------------------------------------------------------------------
-# Lifespan Context Manager
-# ---------------------------------------------------------------------------
+# 1. Lifespan: 서버 시작/종료 시 실행될 로직 정의
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Manages application startup and shutdown events.
-
-    Startup (before yield):
-        - Create database tables
-        - Initialize default data (seats 1-70)
-
-    Shutdown (after yield):
-        - Cleanup resources if needed
-
-    Why use lifespan instead of @app.on_event?
-        - @app.on_event is deprecated in newer FastAPI versions
-        - lifespan provides cleaner resource management
-        - It's the recommended modern approach
-    """
-    # =========================================================================
-    # STARTUP: Code here runs when the application starts
-    # =========================================================================
-
-    print("🚀 Starting up the application...")
-
-    # Create all database tables
-    # This reads all models that inherit from Base and creates their tables
+    # [Startup] 서버 시작 시 실행
+    print("🚀 Starting up application...")
+    
     Base.metadata.create_all(bind=engine)
-    print("✅ Database tables created")
+    
+    # DB 세션을 열고 초기화 로직 실행 후 즉시 닫음
+    initialize_data()
+    
+    yield  # 애플리케이션 가동 중...
+    
+    # [Shutdown] 서버 종료 시 실행 (필요 시 작성)
+    print("👋 Shutting down application...")
 
-    # Initialize seats if the database is empty
-    initialize_seats()
-
-    # Yield control to the application (app runs while yielded)
-    yield
-
-    # =========================================================================
-    # SHUTDOWN: Code here runs when the application stops
-    # =========================================================================
-    print("👋 Shutting down the application...")
-
-
-def initialize_seats():
-    """
-    Initialize seats 1-70 and meeting rooms 1-3 if they don't exist.
-
-    This function runs on every startup but only creates data
-    if the database is empty.
-    """
-    # Create a new database session
-    db = SessionLocal()
-
-    try:
-        # 1. Initialize meeting rooms (1-3)
-        meeting_rooms_count = db.query(models.MeetingRoom).count()
-        if meeting_rooms_count == 0:
-            print("📝 No meeting rooms found. Creating meeting rooms 1-3...")
-            for room_id in range(1, 4):
-                room = models.MeetingRoom(
-                    room_id=room_id,
-                    min_capacity=3,
-                    max_capacity=None
-                )
-                db.add(room)
-            db.commit()
-            print("✅ Successfully created 3 meeting rooms!")
-        else:
-            print(f"ℹ️  Found {meeting_rooms_count} meeting rooms. Skipping initialization.")
-
-        # 2. Initialize seats (1-70)
-        seats_count = crud.get_seats_count(db)
-
-        if seats_count == 0:
-            print("📝 No seats found. Creating seats 1-70...")
-
-            # Create seats with IDs from 1 to 70
-            for seat_id in range(1, 71):
-                seat_data = schemas.SeatCreate(seat_id=seat_id)
-                crud.create_seat(db, seat_data)
-
-            print("✅ Successfully created 70 seats!")
-        else:
-            print(f"ℹ️  Found {seats_count} existing seats. Skipping initialization.")
-
-    except Exception as e:
-        print(f"❌ Error during initialization: {e}")
-        db.rollback()
-    finally:
-        # Always close the session
-        db.close()
+# 2. FastAPI 앱 생성
+app = FastAPI(
+    title="Seat Reservation System",
+    description="API for reserving seats and meeting rooms",
+    version="1.0.0",
+    lifespan=lifespan  # 정의한 lifespan 주입
+)
 
 
 # ---------------------------------------------------------------------------
@@ -132,11 +63,11 @@ app = FastAPI(
     - Check specific seat status
 
     ## Architecture
-    This project uses a simplified layered architecture:
-    - **Router** → API endpoints
-    - **CRUD** → Database operations (pure functions)
-    - **Models** → SQLAlchemy database tables
-    - **Schemas** → Pydantic validation models
+    This project uses a domain-driven layered architecture:
+    - **api/v1/endpoints** → API endpoints by domain
+    - **services** → Business logic by domain
+    - **schemas** → Pydantic validation models by domain
+    - **models** → SQLAlchemy database tables
     """,
     version="1.0.0",
     lifespan=lifespan  # Register the lifespan manager
@@ -147,10 +78,8 @@ app = FastAPI(
 # ---------------------------------------------------------------------------
 # Include Routers
 # ---------------------------------------------------------------------------
-# This adds all the endpoints from the routers to our app
-app.include_router(seats.router)
-app.include_router(meeting_rooms.router)
-app.include_router(auth.router)
+# This adds all the endpoints from the aggregated API router
+app.include_router(api_router)
 
 
 # ---------------------------------------------------------------------------

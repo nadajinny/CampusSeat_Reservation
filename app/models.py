@@ -1,23 +1,3 @@
-"""
-models.py - SQLAlchemy Database Models
-======================================
-This module defines the database tables using SQLAlchemy ORM.
-
-Key Concepts for Students:
-- Each class represents a table in the database
-- Each attribute represents a column in the table
-- SQLAlchemy automatically handles the mapping between Python objects and SQL
-
-ERD Overview:
-- users: 학생 계정 (studentID, name, department, role)
-- meeting_rooms: 회의실 정보 (roomID 1~3)
-- seats: 좌석 정보 (seatID 1~70)
-- reservations: 예약 통합 테이블
-"""
-
-from datetime import datetime
-from enum import Enum as PyEnum
-from sqlalchemy.sql import func
 from sqlalchemy import (
     Column,
     Integer,
@@ -30,6 +10,8 @@ from sqlalchemy import (
     Index,
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from enum import Enum as PyEnum
 
 from .database import Base
 
@@ -37,18 +19,12 @@ from .database import Base
 # ---------------------------------------------------------------------------
 # Enum Definitions
 # ---------------------------------------------------------------------------
-class UserRole(str, PyEnum):
-    """사용자 역할"""
-    STUDENT = "student"
-    ADMIN = "admin"
-
-
 class ReservationStatus(str, PyEnum):
     """예약 상태"""
-    RESERVED = "RESERVED"      # 예약 완료
-    IN_USE = "IN_USE"          # 사용 중
-    CANCELED = "CANCELED"      # 취소됨
-    COMPLETED = "COMPLETED"    # 이용 완료
+    RESERVED = "RESERVED"
+    IN_USE = "IN_USE"
+    CANCELED = "CANCELED"
+    COMPLETED = "COMPLETED"
 
 
 # ---------------------------------------------------------------------------
@@ -56,20 +32,17 @@ class ReservationStatus(str, PyEnum):
 # ---------------------------------------------------------------------------
 class User(Base):
     """
-    학생 계정 테이블 (로그인 타임스탬프만 저장)
-
-    Columns:
-        student_id: 학번 (PK)
-        last_login_at: 마지막 로그인 시각
+    학생 계정 테이블
     """
-
     __tablename__ = "users"
 
+    # 학번
     student_id = Column(Integer, primary_key=True, autoincrement=False)
-    # Datetime is stored as fixed-length string (YYYY-MM-DD HH:MM:SS)
-    last_login_at = Column(String(19), nullable=False)
 
-    # 예약과의 관계 (필요시 사용)
+    # 1. timezone=True 추가 (UTC 저장 명시)
+    # 2. nullable=True (가입 직후에는 로그인 기록이 없음)
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
+
     reservations = relationship("Reservation", back_populates="user")
 
     def __repr__(self):
@@ -82,26 +55,13 @@ class User(Base):
 class MeetingRoom(Base):
     """
     회의실 정보 테이블
-
-    Columns:
-        room_id: 회의실 번호 (1~3) (PK)
-        min_capacity: 최소 이용 인원 (기본 3명)
-        max_capacity: 최대 이용 인원
-
-    초기 데이터(seed):
-        (1, 3, NULL), (2, 3, NULL), (3, 3, NULL)
     """
-
     __tablename__ = "meeting_rooms"
 
-    # 회의실 번호 (1~3)
     room_id = Column(Integer, primary_key=True, autoincrement=False)
-
-    # 최소 이용 인원 (기본 3명)
     min_capacity = Column(Integer, nullable=False, default=3)
-
-    # 최대 이용 인원
-    max_capacity = Column(Integer, nullable=True)
+    max_capacity = Column(Integer, nullable=False, default=6)
+    is_available = Column(Boolean, nullable=False, default=True)
 
     def __repr__(self):
         return f"<MeetingRoom(room_id={self.room_id}, min={self.min_capacity}, max={self.max_capacity})>"
@@ -113,18 +73,11 @@ class MeetingRoom(Base):
 class Seat(Base):
     """
     좌석 정보 테이블
-
-    Columns:
-        seat_id: 좌석 번호 (1~70) (PK)
-
-    초기 데이터(seed):
-        1~70 insert
     """
-
     __tablename__ = "seats"
 
-    # 좌석 번호 (1~70)
     seat_id = Column(Integer, primary_key=True, autoincrement=False)
+    is_available = Column(Boolean, nullable=False, default=True)
 
     def __repr__(self):
         return f"<Seat(seat_id={self.seat_id})>"
@@ -136,108 +89,47 @@ class Seat(Base):
 class Reservation(Base):
     """
     예약 통합 테이블
-
-    회의실과 좌석 예약을 하나의 테이블로 관리합니다.
-    meeting_room_id와 seat_id 중 하나만 값이 있어야 합니다.
-
-    Columns:
-        reservation_id: 예약 고유 ID (PK, 자동 증가)
-        student_id: 예약자 학번 (FK → users)
-        meeting_room_id: 회의실 번호 (FK → meeting_rooms), 회의실 예약 시
-        seat_id: 좌석 번호 (FK → seats), 좌석 예약 시
-        start_time: 시작 시간
-        end_time: 종료 시간
-        is_owner: 예약 생성자 여부
-        created_at: 생성 일시
-        status: 예약 상태 (RESERVED, IN_USE, CANCELED, COMPLETED)
-
-    Check Constraints:
-        - start_time < end_time
-        - meeting_room_id와 seat_id 중 하나만 NOT NULL
     """
-
     __tablename__ = "reservations"
 
-    # ---------------------------------------------------------------------------
-    # Check Constraints (데이터 무결성 보장)
-    # ---------------------------------------------------------------------------
     __table_args__ = (
-        # 시작 시간이 종료 시간보다 앞서야 함
         CheckConstraint("start_time < end_time", name="check_time_order"),
-
-        # meeting_room_id와 seat_id 중 하나만 NOT NULL (XOR 조건)
         CheckConstraint(
             "(meeting_room_id IS NOT NULL AND seat_id IS NULL) OR "
             "(meeting_room_id IS NULL AND seat_id IS NOT NULL)",
             name="check_exclusive_facility"
         ),
-
-        # 조회 성능 인덱스
         Index('idx_student_start', 'student_id', 'start_time'),
         Index('idx_room_start', 'meeting_room_id', 'start_time', 'status'),
         Index('idx_seat_start', 'seat_id', 'start_time', 'status'),
     )
 
-    # ---------------------------------------------------------------------------
-    # Column Definitions
-    # ---------------------------------------------------------------------------
-
-    # 예약 고유 ID (자동 증가)
     reservation_id = Column(Integer, primary_key=True, autoincrement=True)
 
-    # 예약자 학번 (FK → users)
-    student_id = Column(
-        Integer,
-        ForeignKey("users.student_id"),
-        nullable=False
-    )
+    student_id = Column(Integer, ForeignKey("users.student_id"), nullable=False)
+    meeting_room_id = Column(Integer, ForeignKey("meeting_rooms.room_id"), nullable=True)
+    seat_id = Column(Integer, ForeignKey("seats.seat_id"), nullable=True)
 
-    # 회의실 번호 (FK → meeting_rooms), 회의실 예약 시에만 사용
-    meeting_room_id = Column(
-        Integer,
-        ForeignKey("meeting_rooms.room_id"),
-        nullable=True
-    )
+    # [수정됨] timezone=True 추가 (UTC 기준 저장)
+    start_time = Column(DateTime(timezone=True), nullable=False)
+    
+    # [수정됨] timezone=True 추가 (UTC 기준 저장)
+    end_time = Column(DateTime(timezone=True), nullable=False)
 
-    # 좌석 번호 (FK → seats), 좌석 예약 시에만 사용
-    seat_id = Column(
-        Integer,
-        ForeignKey("seats.seat_id"),
-        nullable=True
-    )
+    # [수정됨] timezone=True 추가
+    # 주의: SQLite에서는 server_default=func.now()가 UTC 문자열을 잘 생성하는지 확인 필요.
+    # 가장 확실한 방법은 CRUD 레벨에서 datetime.now(timezone.utc)를 직접 넣어주는 것입니다.
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
-    # 시작 시간
-    start_time = Column(DateTime, nullable=False)
-
-    # 종료 시간
-    end_time = Column(DateTime, nullable=False)
-
-    # 예약 생성자 여부
-    is_owner = Column(Boolean, nullable=False, default=True)
-
-    # 생성 일시
-    created_at = Column(DateTime, nullable=False, server_default=func.now())
-
-    # 예약 상태: RESERVED, IN_USE, CANCELED, COMPLETED
     status = Column(
         Enum(ReservationStatus, name="reservation_status_enum"),
         nullable=False,
         default=ReservationStatus.RESERVED
     )
 
-    # ---------------------------------------------------------------------------
-    # Relationships
-    # ---------------------------------------------------------------------------
-    # 예약자
     user = relationship("User", back_populates="reservations")
-
-    # 회의실
     meeting_room = relationship("MeetingRoom")
-
-    # 좌석
     seat = relationship("Seat")
-
-    # 참여자 (회의실 예약만)
     participants = relationship("ReservationParticipant", back_populates="reservation")
 
     def __repr__(self):
@@ -251,39 +143,25 @@ class Reservation(Base):
 class ReservationParticipant(Base):
     """
     회의실 예약 참여자 테이블
-
-    회의실 예약 시 참여자 명단을 저장합니다.
-    좌석 예약에는 사용하지 않습니다.
-
-    Columns:
-        id: 참여자 레코드 ID (PK, 자동 증가)
-        reservation_id: 예약 ID (FK → reservations)
-        participant_student_id: 참여자 학번
-        participant_name: 참여자 이름
     """
-
     __tablename__ = "reservation_participants"
 
-    # 참여자 레코드 ID
     id = Column(Integer, primary_key=True, autoincrement=True)
-
-    # 예약 ID (FK)
+    
     reservation_id = Column(
         Integer,
         ForeignKey("reservations.reservation_id", ondelete="CASCADE"),
         nullable=False
     )
+    
+    participant_student_id = Column(
+        Integer,
+        ForeignKey("users.student_id"),
+        nullable=False
+    )
 
-    # 참여자 학번
-    participant_student_id = Column(Integer, nullable=True)
-
-    # 참여자 이름
-    participant_name = Column(String(50), nullable=True)
-
-    # ---------------------------------------------------------------------------
-    # Relationships
-    # ---------------------------------------------------------------------------
     reservation = relationship("Reservation", back_populates="participants")
 
     def __repr__(self):
-        return f"<ReservationParticipant(reservation_id={self.reservation_id}, name={self.participant_name})>"
+        return f"<ReservationParticipant(reservation_id={self.reservation_id}, student={self.participant_student_id})>"
+    
