@@ -3,35 +3,35 @@ constants.py - Application Constants
 ====================================
 This module defines constant values used throughout the application.
 """
+from enum import Enum
 
-
-class ErrorCode:
-    """API Error Code Constants"""
-
-    # Authentication errors
-    AUTH_INVALID_STUDENT_ID = "AUTH_INVALID_STUDENT_ID"
-    AUTH_UNAUTHORIZED = "AUTH_UNAUTHORIZED"
-
-    # Validation errors
+class ErrorCode(str, Enum):
+    """API 에러 코드 정의"""
+    # 1. 공통/유효성
     VALIDATION_ERROR = "VALIDATION_ERROR"
-
-    # Time-related errors
-    TIME_OUT_OF_OPERATION_HOURS = "TIME_OUT_OF_OPERATION_HOURS"
-
-    # Reservation conflicts
-    RESERVATION_CONFLICT = "RESERVATION_CONFLICT"
-    OVERLAP_WITH_OTHER_FACILITY = "OVERLAP_WITH_OTHER_FACILITY"
-
-    # Limit errors
-    DAILY_LIMIT_EXCEEDED = "DAILY_LIMIT_EXCEEDED"
-    WEEKLY_LIMIT_EXCEEDED = "WEEKLY_LIMIT_EXCEEDED"
-
-    # Meeting room specific
-    PARTICIPANT_MIN_NOT_MET = "PARTICIPANT_MIN_NOT_MET"
-
-    # General errors
     NOT_FOUND = "NOT_FOUND"
-    FORBIDDEN = "FORBIDDEN"
+    INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR"
+    
+    # 2. 비즈니스 로직
+    RESERVATION_CONFLICT = "RESERVATION_CONFLICT"
+    USAGE_LIMIT_EXCEEDED = "USAGE_LIMIT_EXCEEDED"
+    AUTH_UNAUTHORIZED = "AUTH_UNAUTHORIZED"
+    AUTH_FORBIDDEN = "AUTH_FORBIDDEN"
+    SEAT_ALREADY_EXISTS = "SEAT_ALREADY_EXISTS"
+    AUTH_INVALID_STUDENT = "AUTH_INVALID_STUDENT"
+
+# 기본 에러 메시지 매핑
+ERROR_MESSAGES = {
+    ErrorCode.VALIDATION_ERROR: "입력 값이 올바르지 않거나 유효하지 않은 요청입니다.",
+    ErrorCode.NOT_FOUND: "요청하신 리소스를 찾을 수 없습니다.",
+    ErrorCode.INTERNAL_SERVER_ERROR: "서버 내부 오류가 발생했습니다.",
+    ErrorCode.RESERVATION_CONFLICT: "선택하신 시간대에 이미 예약이 존재합니다.",
+    ErrorCode.USAGE_LIMIT_EXCEEDED: "시설 이용 한도를 초과했습니다.",
+    ErrorCode.AUTH_UNAUTHORIZED: "로그인이 필요합니다.",
+    ErrorCode.AUTH_FORBIDDEN: "접근 권한이 없습니다.",
+    ErrorCode.SEAT_ALREADY_EXISTS: "이미 존재하는 좌석입니다.",
+    ErrorCode.AUTH_INVALID_STUDENT: "유효하지 않은 학번입니다.",
+}
 
 
 class OperationHours:

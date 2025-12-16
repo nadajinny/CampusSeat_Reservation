@@ -7,11 +7,11 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from ....database import get_db
-from ....schemas import user as user_schemas
-from ....schemas.common import ApiResponse
-from ....services import user_service
-from ....exceptions import BusinessException
+from app.database import get_db
+from app.schemas import user as user_schemas
+from app.schemas.common import ApiResponse
+from app.services import user_service
+from app.exceptions import BusinessException
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 

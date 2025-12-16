@@ -6,9 +6,10 @@ schemas/meeting_room.py - Meeting Room Schemas
 
 from typing import List, Self
 from datetime import date as Date, time as Time, datetime, timedelta
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, field_validator
 
-from ..constants import OperationHours, ReservationLimits
+from app.constants import OperationHours, ReservationLimits
+from app.schemas.user import UserBase
 
 # -------------------------------------------------------------------
 # 1. Meeting Room Entity Schemas
@@ -28,9 +29,9 @@ class MeetingRoomResponse(MeetingRoomBase):
 # -------------------------------------------------------------------
 # 2. Reservation Request Schemas (예약 생성 전용)
 # -------------------------------------------------------------------
-class ParticipantBase(BaseModel):
+class ParticipantBase(UserBase):
     """참여자 정보"""
-    student_id: int = Field(..., description="참여자 학번")
+    pass
 
 
 class MeetingRoomReservationCreate(BaseModel):
@@ -49,14 +50,43 @@ class MeetingRoomReservationCreate(BaseModel):
         description="참여자 목록 (최소 3명)"
     )
     
+    # ---------------------------------------------------------
+    # [NEW] 참여자 중복 검증 (필드 검증)
+    # ---------------------------------------------------------
+    @field_validator('participants')
+    @classmethod
+    def check_unique_participants(cls, v: List[ParticipantBase]) -> List[ParticipantBase]:
+        """
+        참여자 목록 내 중복 학번 검사
+        예: [202312345, 202312345, 202312345] -> Error
+        """
+        # 입력된 객체 리스트에서 student_id만 추출
+        ids = [p.student_id for p in v]
+        
+        # Set으로 변환하여 중복 제거 후 길이 비교
+        if len(set(ids)) != len(ids):
+            raise ValueError("참여자 목록에 중복된 학번이 존재합니다.")
+            
+        return v
+    
+    # ---------------------------------------------------------
+    # 시간 규칙 검증 (기존 로직 유지)
+    # ---------------------------------------------------------
     @model_validator(mode='after')
     def check_time_rules(self) -> Self:
-        """
-        예약 시간 관련 비즈니스 규칙 검증
-        1. 종료 시간이 시작 시간보다 늦어야 함
-        2. 운영 시간(09:00~18:00) 내여야 함
-        3. 예약 단위가 정확히 1시간이어야 함
-        """
+        # [KST 직접 수신 방식]
+        # 들어온 시간에 Timezone 정보가 있으면(Z 등), 과감히 떼버리고 그 숫자를 KST로 인정
+        # 예: 14:00Z가 들어오면 -> 14:00 (KST)로 해석 (클라이언트가 실수로 Z 붙였다고 가정)
+        
+        if self.start_time.tzinfo is not None:
+            self.start_time = self.start_time.replace(tzinfo=None)
+        
+        if self.end_time.tzinfo is not None:
+            self.end_time = self.end_time.replace(tzinfo=None)
+
+        # 이제 start, end는 무조건 "입력한 숫자 그대로"의 시간입니다.
+        # 즉, 14:00으로 들어왔으면 14:00 KST로 간주하고 바로 검증합니다.
+        
         start = self.start_time
         end = self.end_time
 

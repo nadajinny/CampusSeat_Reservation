@@ -12,16 +12,13 @@ from datetime import datetime, timezone, timedelta
 # 1. Base Schema (공통 속성)
 # -------------------------------------------------------------------
 class UserBase(BaseModel):
+    """
+    사용자 기본 정보
+    - 모든 곳에서 '유저'를 참조할 때 이 스키마를 상속하거나 사용합니다.
+    """
     student_id: int = Field(..., description="학번")
 
-
-# -------------------------------------------------------------------
-# 2. Request Schemas (요청)
-# -------------------------------------------------------------------
-class LoginRequest(BaseModel):
-    """로그인 요청 (문자열/숫자 모두 허용 -> 검증된 문자열 변환)"""
-    student_id: str = Field(..., description="학번 (9자리)")
-
+    # [핵심] 학번 길이 검증 로직을 여기로 이동 (중앙 관리)
     @field_validator("student_id", mode="before")
     @classmethod
     def validate_and_normalize_id(cls, v):
@@ -36,9 +33,15 @@ class LoginRequest(BaseModel):
         # 2. [핵심] Pydantic 검증 로직 추가 (9자리 숫자)
         if not (len(v) == 9 and v.isdigit()):
             raise ValueError("학번은 정확히 9자리 숫자여야 합니다.")
-            
         return v
 
+
+# -------------------------------------------------------------------
+# 2. Request Schemas (요청)
+# -------------------------------------------------------------------
+class LoginRequest(UserBase):
+    """로그인 요청은 학번만 있으면 됨"""
+    pass
 
 # -------------------------------------------------------------------
 # 3. Response Schemas (응답)

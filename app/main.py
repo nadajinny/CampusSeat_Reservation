@@ -1,112 +1,54 @@
 """
 main.py - Application Entry Point
-=================================
-This is the main entry point for the FastAPI application.
-
-Key Concepts for Students:
-- FastAPI(): Creates the application instance
-- lifespan: Manages startup and shutdown events
-- include_router: Adds route modules to the app
-
-How to run:
-    uvicorn app.main:app --reload
-
-Then visit:
-    http://127.0.0.1:8000/docs  (Swagger UI)
-    http://127.0.0.1:8000/redoc (ReDoc)
 """
-
-# app/main.py
-from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from app.database import SessionLocal, engine, Base
-from app import models
-from app.init_db import initialize_data
-from app.api.v1 import api_router  # (예시) 라우터들이 모여있는 곳
+from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 
-# 1. Lifespan: 서버 시작/종료 시 실행될 로직 정의
+from app.database import engine, Base
+from app.init_db import initialize_data
+from app.api.v1 import api_router
+from app.exceptions import BusinessException
+from app.handlers.exception_handlers import (
+    business_exception_handler,
+    validation_exception_handler,
+    internal_exception_handler
+)
+
+# 1. Lifespan: 서버 시작/종료 로직
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # [Startup] 서버 시작 시 실행
     print("🚀 Starting up application...")
-    
     Base.metadata.create_all(bind=engine)
-    
-    # DB 세션을 열고 초기화 로직 실행 후 즉시 닫음
     initialize_data()
-    
-    yield  # 애플리케이션 가동 중...
-    
-    # [Shutdown] 서버 종료 시 실행 (필요 시 작성)
+    yield
     print("👋 Shutting down application...")
 
-# 2. FastAPI 앱 생성
-app = FastAPI(
-    title="Seat Reservation System",
-    description="API for reserving seats and meeting rooms",
-    version="1.0.0",
-    lifespan=lifespan  # 정의한 lifespan 주입
-)
-
-
-# ---------------------------------------------------------------------------
-# Create FastAPI Application
-# ---------------------------------------------------------------------------
+# 2. FastAPI 앱 생성 (중복 제거됨)
 app = FastAPI(
     title="Library Seat Reservation System",
-    description="""
-    A simple API for managing library seat reservations.
-
-    ## Features
-    - View all available seats
-    - Create new seats
-    - Check specific seat status
-
-    ## Architecture
-    This project uses a domain-driven layered architecture:
-    - **api/v1/endpoints** → API endpoints by domain
-    - **services** → Business logic by domain
-    - **schemas** → Pydantic validation models by domain
-    - **models** → SQLAlchemy database tables
-    """,
+    description="API for reserving seats and meeting rooms",
     version="1.0.0",
-    lifespan=lifespan  # Register the lifespan manager
+    lifespan=lifespan
 )
 
+# 3. 예외 핸들러 등록 (순서 중요)
+app.add_exception_handler(BusinessException, business_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, internal_exception_handler)
 
-
-# ---------------------------------------------------------------------------
-# Include Routers
-# ---------------------------------------------------------------------------
-# This adds all the endpoints from the aggregated API router
+# 4. 라우터 등록
 app.include_router(api_router)
 
-
-# ---------------------------------------------------------------------------
-# Root Endpoint
-# ---------------------------------------------------------------------------
+# 5. 기본 엔드포인트
 @app.get("/")
 def read_root():
-    """
-    Root endpoint - Welcome message.
-
-    Returns a simple welcome message to confirm the API is running.
-    """
     return {
         "message": "Welcome to the Library Seat Reservation System!",
         "docs": "/docs",
         "redoc": "/redoc"
     }
 
-
-# ---------------------------------------------------------------------------
-# Health Check Endpoint
-# ---------------------------------------------------------------------------
 @app.get("/health")
 def health_check():
-    """
-    Health check endpoint.
-
-    Useful for monitoring and load balancers to verify the app is running.
-    """
     return {"status": "healthy"}

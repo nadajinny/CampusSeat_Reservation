@@ -4,12 +4,14 @@ services/meeting_room_service.py - Meeting Room Service
 회의실 예약 프로세스 조율 및 비즈니스 로직 (Facade)
 """
 
-from datetime import datetime, timedelta, date, time, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List
 from sqlalchemy.orm import Session
 
-from .. import models, schemas, constants
-from . import user_service, reservation_service
+from app import models, schemas, constants
+from app.services import user_service, reservation_service
+from app.exceptions import ConflictException, LimitExceededException
+from app.constants import ErrorCode
 
 # 한국 시간대 정의
 KST = timezone(timedelta(hours=9))
@@ -35,27 +37,40 @@ def process_reservation(
     duration_minutes = (end_dt_utc - start_dt_utc).total_seconds() / 60
 
     # ---------------------------------------------------
-    # 2. 비즈니스 로직 검증 (여기서는 UTC 시간을 사용)
+    # 2. 비즈니스 로직 검증 (커스텀 예외 적용 완료)
     # ---------------------------------------------------
-    # DB에는 UTC가 들어있고, 우리가 만든 start_dt_utc도 UTC이므로 비교 OK
     
+    # 2-1. 회의실 중복 예약 확인
     if check_room_conflict(db, request.room_id, start_dt_utc):
-        raise ValueError("해당 회의실은 이미 예약되어 있습니다.")
+        raise ConflictException(
+            code=ErrorCode.RESERVATION_CONFLICT,
+            message="해당 회의실은 이미 예약되어 있습니다."
+        )
 
+    # 2-2. 사용자 중복 이용(다른 시설 포함) 확인
     if reservation_service.check_overlap_with_other_facility(db, student_id, start_dt_utc):
-        raise ValueError("동일 시간에 다른 시설 예약이 존재합니다.")
+        raise ConflictException(
+            code=ErrorCode.RESERVATION_CONFLICT,
+            message="동일 시간에 다른 시설 예약이 존재합니다."
+        )
 
     # 2-3. 일일 이용 한도 확인
     daily_used = check_user_daily_meeting_limit(db, student_id, start_dt_utc)
     limit_daily = constants.ReservationLimits.MEETING_ROOM_DAILY_LIMIT_MINUTES
     if daily_used + duration_minutes > limit_daily:
-        raise ValueError(f"일일 이용 한도({limit_daily}분)를 초과했습니다. (현재: {daily_used}분 사용 중)")
+        raise LimitExceededException(
+            code=ErrorCode.USAGE_LIMIT_EXCEEDED,
+            message=f"일일 이용 한도({limit_daily}분)를 초과했습니다. (현재: {daily_used}분 사용 중)"
+        )
 
     # 2-4. 주간 이용 한도 확인
     weekly_used = check_user_weekly_meeting_limit(db, student_id, start_dt_utc)
     limit_weekly = constants.ReservationLimits.MEETING_ROOM_WEEKLY_LIMIT_MINUTES
     if weekly_used + duration_minutes > limit_weekly:
-        raise ValueError(f"주간 이용 한도({limit_weekly}분)를 초과했습니다. (현재: {weekly_used}분 사용 중)")
+        raise LimitExceededException(
+            code=ErrorCode.USAGE_LIMIT_EXCEEDED,
+            message=f"주간 이용 한도({limit_weekly}분)를 초과했습니다. (현재: {weekly_used}분 사용 중)"
+        )
 
     # ---------------------------------------------------
     # 3. 유저 처리 및 예약 생성 (Action)

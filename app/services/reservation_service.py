@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
-from .. import models, schemas
+from .. import models
 
 
 def check_overlap_with_other_facility(
@@ -36,9 +36,6 @@ def create_meeting_room_reservation(
 ) -> models.Reservation:
     """
     회의실 예약 데이터 생성 (순수 DB Insert)
-    
-    주의: 이 함수는 유효성 검사나 유저 생성을 하지 않습니다.
-    이미 검증된 데이터만 받아야 합니다.
     """
     # 1. 예약 객체 생성
     reservation = models.Reservation(
@@ -50,7 +47,7 @@ def create_meeting_room_reservation(
         status=models.ReservationStatus.RESERVED
     )
     db.add(reservation)
-    db.flush()  # ID 발급을 위해 flush
+    db.flush()
 
     # 2. 참여자 데이터 생성
     for p_id in participant_ids:
