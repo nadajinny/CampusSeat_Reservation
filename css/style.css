@@ -300,26 +300,31 @@ p {
 .seat-map {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .seat-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.seat-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 14px 16px;
   display: flex;
-  flex-wrap: wrap;
+  justify-content: space-between;
   align-items: center;
-  gap: 8px;
 }
 
-.seat-separator {
-  font-weight: 600;
-  color: #999;
+.seat-card button.blocked {
+  background-color: #cfd6e3;
+  color: #555;
+  cursor: not-allowed;
 }
 
-.seat-row button {
-  min-width: 150px;
-}
-
-.seat-row button.selected {
+.seat-card button.selected {
   border: 2px solid #2f80ed;
   background-color: #f2f6ff;
   color: #2f80ed;

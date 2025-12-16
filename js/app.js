@@ -12,7 +12,7 @@
   const MEETING_SLOTS = createSlots({ startHour: 9, endHour: 18, duration: 1 });
   const READING_SLOTS = createSlots({ startHour: 9, endHour: 18, duration: 2 });
 
-  const READING_SEATS = Array.from({ length: 70 }, (_, idx) => {
+  const READING_SEATS = Array.from({ length: 15 }, (_, idx) => {
     const number = idx + 1;
     const label = `좌석 ${number}`;
     return { id: `SEAT-${number}`, label };
@@ -560,25 +560,31 @@
 
     map.innerHTML = "";
 
-    const seatsPerRow = 10;
+    const seatsPerRow = 3;
     for (let i = 0; i < READING_SEATS.length; i += seatsPerRow) {
       const row = document.createElement("div");
       row.className = "seat-row";
 
       const rowSeats = READING_SEATS.slice(i, i + seatsPerRow);
-      rowSeats.forEach((seat, index) => {
+      rowSeats.forEach((seat) => {
+        const card = document.createElement("div");
+        card.className = "seat-card";
+
+        const label = document.createElement("strong");
+        label.textContent = seat.label;
+
         const button = document.createElement("button");
         button.type = "button";
-        button.dataset.seatId = seat.id;
 
         const available = isSeatFree(reservations, seat.id, selectedSlots);
         const selected = state.selectedSeat === seat.id;
 
-        button.textContent = available ? `${seat.label} 예약 가능` : `${seat.label} 예약 불가`;
-
         if (!available) {
+          button.textContent = "예약 불가";
           button.disabled = true;
+          button.classList.add("blocked");
         } else {
+          button.textContent = selected ? "선택됨" : "예약 가능";
           button.addEventListener("click", () => handleSeatSelection(seat.id));
         }
 
@@ -586,14 +592,8 @@
           button.classList.add("selected");
         }
 
-        row.appendChild(button);
-
-        if (index < rowSeats.length - 1) {
-          const separator = document.createElement("span");
-          separator.className = "seat-separator";
-          separator.textContent = ":";
-          row.appendChild(separator);
-        }
+        card.append(label, button);
+        row.appendChild(card);
       });
 
       map.appendChild(row);
