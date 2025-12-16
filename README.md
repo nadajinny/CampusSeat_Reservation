@@ -160,3 +160,30 @@ Jeonbuk National University
 ## 📄 License
 
 This project is for educational purposes as part of a Software Engineering course.
+
+---
+
+## 🧰 Development Setup
+
+1. **Install dependencies** (once per machine)
+
+   ```bash
+   npm install
+   ```
+
+2. **Run unit tests (ReservationEngine TDD suite)**
+
+   ```bash
+   npm test
+   ```
+
+3. **Static assets / local preview**
+
+   ```bash
+   python3 -m http.server 5500
+   # open http://localhost:5500/
+   ```
+
+> `node_modules/`와 빌드 산출물은 `.gitignore`에 포함되어 있으므로, 저장소를 새로 클론한 뒤 반드시 `npm install`을 실행해 개발 의존성을 설치하세요.
+
+---

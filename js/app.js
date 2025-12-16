@@ -29,8 +29,15 @@
   };
 
   let studentId = null;
+  const ReservationEngineClass = window.ReservationEngine;
 
   document.addEventListener("DOMContentLoaded", () => {
+    if (!ReservationEngineClass) {
+      console.error("ReservationEngine is required to run this application.");
+      alert("시스템 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+      return;
+    }
+
     studentId = sessionStorage.getItem("studentId");
 
     if (!studentId) {
@@ -310,7 +317,7 @@
       const button = document.createElement("button");
       button.type = "button";
 
-      const available = isRoomAvailable(reservations, room.id, state.selectedMeetingSlot);
+      const available = isRoomAvailable(reservations, state.date, room.id, state.selectedMeetingSlot);
       const selected = state.selectedMeetingRoom === room.id;
 
       button.textContent = available ? (selected ? "선택됨" : "예약 가능") : "예약 불가";
@@ -405,32 +412,22 @@
 
     const participants = state.participants.map((value) => value.trim()).filter(Boolean);
 
-    if (participants.length < 3) {
-      if (errorEl) errorEl.textContent = "참여자는 최소 3명 이상 입력해야 합니다.";
-      return;
-    }
-
-    const invalidFormat = participants.some((id) => !/^\d{9}$/.test(id));
-    if (invalidFormat) {
-      if (errorEl) errorEl.textContent = "참여자 학번은 9자리 숫자로 입력해 주세요.";
-      return;
-    }
-
     const reservations = loadReservations();
     const slot = getSlotById(state.selectedMeetingSlot, "MEETING");
     const room = MEETING_ROOMS.find((item) => item.id === state.selectedMeetingRoom);
 
     if (!slot || !room) return;
 
-    if (!isRoomAvailable(reservations, room.id, slot.id)) {
-      if (errorEl) errorEl.textContent = "이미 예약된 회의실입니다. 다른 회의실을 선택해 주세요.";
-      renderMeetingRooms();
-      renderMeetingTimeSlots();
-      return;
-    }
+    const engine = new ReservationEngineClass(reservations, studentId);
+    const validation = engine.validateMeeting({
+      date: state.date,
+      slot,
+      roomId: state.selectedMeetingRoom,
+      participants,
+    });
 
-    if (hasUserConflict(reservations, state.date, [slot])) {
-      if (errorEl) errorEl.textContent = "선택한 시간에 이미 다른 예약이 있습니다.";
+    if (!validation.ok) {
+      if (errorEl) errorEl.textContent = validation.message;
       return;
     }
 
@@ -442,7 +439,7 @@
       timeSlots: [{ ...slot }],
       roomId: room.id,
       roomName: room.name,
-      participants,
+      participants: validation.participants || participants,
       createdAt: new Date().toISOString(),
     };
 
@@ -576,7 +573,7 @@
         const button = document.createElement("button");
         button.type = "button";
 
-        const available = isSeatFree(reservations, seat.id, selectedSlots);
+        const available = ReservationEngineClass.isSeatFree(reservations, state.date, seat.id, selectedSlots);
         const selected = state.selectedSeat === seat.id;
 
         if (!available) {
@@ -618,12 +615,14 @@
       .map((id) => getSlotById(id, "READING"))
       .filter(Boolean);
 
-    const availableSeats = READING_SEATS.filter((seat) => isSeatFree(reservations, seat.id, selectedSlots)).map(
+    const availableSeats = READING_SEATS.filter((seat) =>
+      ReservationEngineClass.isSeatFree(reservations, state.date, seat.id, selectedSlots)
+    ).map(
       (seat) => seat.id
     );
 
     if (availableSeats.length === 0) {
-      alert("선택한 시간에 예약 가능한 좌석이 없습니다.");
+      alert("No available seats for random assignment");
       return;
     }
 
@@ -650,7 +649,9 @@
 
     const slotList = slots.map((slot) => `<li>${state.date} ${slot.label}</li>`).join("");
 
-    const seatLabel = getSeatLabel(state.selectedSeat);
+    const seatLabel = ReservationEngineClass.getSeatLabel
+      ? ReservationEngineClass.getSeatLabel(state.selectedSeat)
+      : state.selectedSeat;
 
     summary.innerHTML = `
       <p><strong>좌석</strong> : ${seatLabel}</p>
@@ -674,19 +675,18 @@
 
     const reservations = loadReservations();
 
-    if (!state.selectedSeat) {
-      if (errorEl) errorEl.textContent = "좌석을 선택해 주세요.";
-      return;
-    }
+    const engine = new ReservationEngineClass(reservations, studentId);
+    const validation = engine.validateSeat({
+      date: state.date,
+      slots,
+      seatId: state.selectedSeat,
+    });
 
-    if (!isSeatFree(reservations, state.selectedSeat, slots)) {
-      if (errorEl) errorEl.textContent = "이미 예약된 좌석입니다. 다른 좌석을 선택해 주세요.";
-      renderSeatMap();
-      return;
-    }
-
-    if (hasUserConflict(reservations, state.date, slots)) {
-      if (errorEl) errorEl.textContent = "선택한 시간에 이미 다른 예약이 있습니다.";
+    if (!validation.ok) {
+      if (errorEl) errorEl.textContent = validation.message;
+      if (validation.code === "SEAT_BOOKED") {
+        renderSeatMap();
+      }
       return;
     }
 
@@ -740,10 +740,11 @@
 
       const slotText = reservation.timeSlots.map((slot) => slot.label).join(", ");
       const typeLabel = reservation.spaceType === "MEETING" ? "회의실" : "열람실";
-      const spaceLabel =
-        reservation.spaceType === "MEETING"
-          ? reservation.roomName
-          : reservation.seatLabel || getSeatLabel(reservation.seatId);
+      const seatLabel =
+        ReservationEngineClass && ReservationEngineClass.getSeatLabel
+          ? ReservationEngineClass.getSeatLabel(reservation.seatId)
+          : reservation.seatId;
+      const spaceLabel = reservation.spaceType === "MEETING" ? reservation.roomName : reservation.seatLabel || seatLabel;
 
       tr.innerHTML = `
         <td>${reservation.id}</td>
@@ -816,29 +817,17 @@
   }
 
   function isMeetingSlotAvailable(reservations, slot) {
-    return MEETING_ROOMS.some((room) => isRoomAvailable(reservations, room.id, slot.id));
+    return MEETING_ROOMS.some((room) => isRoomAvailable(reservations, state.date, room.id, slot.id));
   }
 
-  function isRoomAvailable(reservations, roomId, slotId) {
-    return !reservations.some(
-      (res) =>
-        res.spaceType === "MEETING" &&
-        res.date === state.date &&
-        res.roomId === roomId &&
-        res.timeSlots.some((slot) => slot.id === slotId)
-    );
+  function isRoomAvailable(reservations, date, roomId, slotId) {
+    return !ReservationEngineClass.isRoomReserved(reservations, date, roomId, slotId);
   }
 
   function isReadingSlotAvailable(reservations, slot) {
-    return READING_SEATS.some((seat) => {
-      return !reservations.some(
-        (res) =>
-          res.spaceType === "READING" &&
-          res.date === state.date &&
-          res.seatId === seat.id &&
-          res.timeSlots.some((timeSlot) => slotsOverlap(timeSlot, slot))
-      );
-    });
+    return READING_SEATS.some((seat) =>
+      ReservationEngineClass.isSeatFree(reservations, state.date, seat.id, [slot])
+    );
   }
 
   function canSelectReadingSlot(slot) {
@@ -849,43 +838,9 @@
     const conflicts = state.selectedReadingSlots
       .map((id) => getSlotById(id, "READING"))
       .filter(Boolean)
-      .some((selectedSlot) => slotsOverlap(selectedSlot, slot));
+      .some((selectedSlot) => ReservationEngineClass.slotsOverlap(selectedSlot, slot));
 
     return !conflicts;
-  }
-
-  function isSeatFree(reservations, seatId, targetSlots) {
-    return targetSlots.every((targetSlot) => {
-      return !reservations.some((reservation) => {
-        if (
-          reservation.spaceType !== "READING" ||
-          reservation.date !== state.date ||
-          reservation.seatId !== seatId
-        ) {
-          return false;
-        }
-
-        return reservation.timeSlots.some((slot) => slotsOverlap(slot, targetSlot));
-      });
-    });
-  }
-
-  function hasUserConflict(reservations, date, newSlots) {
-    return reservations.some(
-      (reservation) =>
-        reservation.studentId === studentId &&
-        reservation.date === date &&
-        reservation.timeSlots.some((slot) => newSlots.some((target) => slotsOverlap(slot, target)))
-    );
-  }
-
-  function slotsOverlap(a, b) {
-    return a.startMinutes < b.endMinutes && b.startMinutes < a.endMinutes;
-  }
-
-  function getSeatLabel(seatId) {
-    const seat = READING_SEATS.find((seat) => seat.id === seatId);
-    return seat ? seat.label : seatId;
   }
 
   function postSaveAlert() {
