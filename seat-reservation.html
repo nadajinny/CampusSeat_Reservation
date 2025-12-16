@@ -9,66 +9,39 @@
   <header>
     <h1>열람실 좌석 예약</h1>
     <nav>
-      <a href="dashboard.html">메뉴로 돌아가기</a>
+      <a href="search-availability.html">이전 단계</a>
+      <a href="dashboard.html">메인으로</a>
+      <button type="button" id="logoutBtn">로그아웃</button>
     </nav>
   </header>
 
-  <main>
-    <form id="seat-form">
-      <fieldset>
-        <legend>좌석 예약 정보</legend>
+  <main id="seat-reservation-page">
+    <section id="reading-context">
+      <h2>선택한 시간</h2>
+      <div id="reading-context-card" class="summary-card">
+        <ul id="reading-context-slots"></ul>
+      </div>
+      <p class="notice">
+        시간을 다시 선택하려면 <a href="search-availability.html">예약 가능 시간 조회</a> 페이지에서 처음부터 진행해 주세요.
+      </p>
+      <div id="reading-context-error" class="error hidden">
+        유효한 예약 정보가 없습니다. 다시 조건을 선택해 주세요.
+      </div>
+    </section>
 
-        <div>
-          <label for="date">날짜</label><br />
-          <input type="date" id="date" name="date" required />
-        </div>
+    <section id="reading-seat-section" class="flow-step hidden">
+      <h2>좌석 선택</h2>
+      <div id="reading-seat-map" class="seat-map"></div>
+      <p class="notice">예약 가능한 좌석 중에서 직접 선택하거나, 랜덤 배정 버튼을 눌러 주세요.</p>
+      <button type="button" id="randomSeatBtn" class="secondary-button">랜덤으로 좌석 배정</button>
+    </section>
 
-        <br />
-
-        <div>
-          <span>좌석 선택 방식</span><br />
-          <label>
-            <input type="radio" name="seatType" value="manual" required />
-            직접 선택
-          </label>
-          <label>
-            <input type="radio" name="seatType" value="random" />
-            랜덤 배정
-          </label>
-        </div>
-
-        <br />
-
-        <div>
-          <label for="seat">좌석 번호 (직접 선택 시)</label><br />
-          <select id="seat" name="seat">
-            <option value="">선택</option>
-            <option>1</option>
-            <option>2</option>
-            <option>3</option>
-          </select>
-        </div>
-
-        <br />
-
-        <div>
-          <label for="time">시간 (2시간)</label><br />
-          <select id="time" name="time" required>
-            <option value="">선택</option>
-            <option>09:00 ~ 11:00</option>
-            <option>11:00 ~ 13:00</option>
-            <option>13:00 ~ 15:00</option>
-            <option>15:00 ~ 17:00</option>
-            <option>16:00 ~ 18:00</option>
-          </select>
-        </div>
-
-        <br />
-
-        <button type="submit">예약 제출</button>
-      </fieldset>
-    </form>
+    <section id="reading-summary-section" class="flow-step hidden">
+      <h2>예약 요약</h2>
+      <div id="reading-summary" class="summary-card"></div>
+    </section>
   </main>
+
   <script src="js/app.js"></script>
 </body>
 </html>

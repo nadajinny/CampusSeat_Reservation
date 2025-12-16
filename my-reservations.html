@@ -9,36 +9,31 @@
   <header>
     <h1>내 예약 관리</h1>
     <nav>
-      <a href="dashboard.html">메뉴로 돌아가기</a>
+      <a href="dashboard.html">메인으로</a>
+      <button type="button" id="logoutBtn">로그아웃</button>
     </nav>
   </header>
 
   <main>
     <section>
       <h2>예약 목록</h2>
+      <p class="notice">현재는 조회만 가능하며, 취소 기능은 추후 제공됩니다.</p>
 
-      <table border="1">
+      <div id="reservation-empty" class="notice hidden">
+        아직 등록된 예약이 없습니다. 예약 가능 시간 조회에서 예약을 진행해 주세요.
+      </div>
+
+      <table>
         <thead>
           <tr>
             <th>예약 ID</th>
-            <th>시설</th>
-            <th>번호</th>
+            <th>구분</th>
+            <th>공간</th>
+            <th>날짜</th>
             <th>시간</th>
-            <th>상태</th>
-            <th>취소</th>
           </tr>
         </thead>
-        <tbody>
-          <!-- 예시 -->
-          <tr>
-            <td>101</td>
-            <td>회의실</td>
-            <td>2</td>
-            <td>2025-12-10 10:00 ~ 11:00</td>
-            <td>시작 전</td>
-            <td><button>취소</button></td>
-          </tr>
-        </tbody>
+        <tbody id="reservationList"></tbody>
       </table>
     </section>
   </main>
