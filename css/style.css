@@ -135,6 +135,12 @@ button[type="button"] {
   margin-right: 8px;
 }
 
+button:disabled {
+  background-color: #cfd6e3;
+  color: #666;
+  cursor: not-allowed;
+}
+
 /* =========================
    테이블 스타일
    ========================= */
@@ -192,4 +198,167 @@ p {
 #menu-buttons button {
   width: 100%;
   max-width: 320px;
+}
+
+/* =========================
+   예약 조건 & 스텝
+   ========================= */
+.hidden {
+  display: none !important;
+}
+
+.field-row {
+  margin-bottom: 16px;
+}
+
+.inline-options label {
+  margin-right: 16px;
+  font-weight: 500;
+}
+
+.flow-step {
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.time-slot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.time-slot-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background-color: #fafbfe;
+}
+
+.status-pill {
+  font-weight: 600;
+}
+
+.status-available {
+  color: #2d9c5a;
+}
+
+.status-blocked {
+  color: #d63031;
+}
+
+.slot-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.slot-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.slot-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.slot-card.selected {
+  border-color: #2f80ed;
+  background-color: #f2f6ff;
+}
+
+.slot-card button.blocked {
+  background-color: #cfd6e3;
+  color: #555;
+  cursor: not-allowed;
+}
+
+.room-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.room-card button.blocked {
+  background-color: #cfd6e3;
+  color: #555;
+  cursor: pointer;
+}
+
+.seat-map {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.seat-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.seat-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.seat-card button.blocked {
+  background-color: #cfd6e3;
+  color: #555;
+  cursor: not-allowed;
+}
+
+.seat-card button.selected {
+  border: 2px solid #2f80ed;
+  background-color: #f2f6ff;
+  color: #2f80ed;
+}
+
+.secondary-button {
+  background-color: #4e5d78;
+  margin-top: 12px;
+}
+
+.secondary-button:hover {
+  background-color: #3e4b63;
+}
+
+.summary-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.summary-card ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.participant-row {
+  margin-bottom: 12px;
+}
+
+.participant-row label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
 }

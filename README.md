@@ -80,6 +80,42 @@
 
 ---
 
+## 🧠 Reservation Engine & Validation (NEW)
+
+프런트엔드의 모든 예약 흐름은 `js/reservation-engine.js`에 정의된 **ReservationEngine** 클래스를 통해 검증됩니다.  
+객체지향 기반 설계로, 공통 규칙과 시설별 제약을 정확한 순서로 평가합니다.
+
+### 공통 거부 규칙
+- 인증되지 않은 요청
+- 운영 시간(09:00~18:00) 위반
+- 과거 날짜 예약
+- 동일 사용자 중복 시간 예약(회의실/열람실 구분 없이)
+
+### 회의실 전용
+- 참여자 3명 미만
+- 회의실 중복 예약
+- 일일 2시간 초과 / 주간 5시간 초과
+
+### 열람실 좌석 전용
+- 2시간 슬롯 최대 2개 초과
+- 슬롯 미선택 or 겹치는 슬롯
+- 좌석 중복 예약
+- 일일 총 4시간 초과
+- 랜덤 배정 시 좌석 없음
+
+모든 검증 실패는 코드/메시지 형태로 반환되어 UI에서 즉시 피드백합니다.
+
+---
+
+## 🧪 Automated Tests (TDD)
+
+- `__tests__/reservation-engine.test.js`에 Jest 기반 단위 테스트 21개가 포함되어 있으며,
+  모든 예약 거부 시나리오와 정상 플로우를 검증합니다.
+- `npm test` 명령으로 실행되며, CI/TDD 사이클을 유지하는 데 필수입니다.
+- 테스트 추가 시 ReservationEngine을 중심으로 새로운 케이스를 손쉽게 확장할 수 있습니다.
+
+---
+
 ## 🖥 UI Structure
 
 본 레포지토리는 **HTML 기반 화면 구조**를 중심으로 구성되어 있습니다.
@@ -132,7 +168,12 @@
 ├── css/
 │   └── style.css
 ├── js/
-│   └── app.js
+│   ├── app.js                 # UI 상태 & 이벤트
+│   └── reservation-engine.js  # 예약 검증 로직 (OOP/TDD)
+├── __tests__/                 # Jest 단위 테스트
+│   └── reservation-engine.test.js
+├── package.json               # npm scripts (npm install / npm test)
+├── .gitignore                 # node_modules 등 민감/빌드 산출물 제외
 └── README.md
 ```
 
@@ -160,3 +201,30 @@ Jeonbuk National University
 ## 📄 License
 
 This project is for educational purposes as part of a Software Engineering course.
+
+---
+
+## 🧰 Development Setup
+
+1. **Install dependencies** (once per machine)
+
+   ```bash
+   npm install
+   ```
+
+2. **Run unit tests (ReservationEngine TDD suite)**
+
+   ```bash
+   npm test
+   ```
+
+3. **Static assets / local preview**
+
+   ```bash
+   python3 -m http.server 5500
+   # open http://localhost:5500/
+   ```
+
+> `node_modules/`와 빌드 산출물은 `.gitignore`에 포함되어 있으므로, 저장소를 새로 클론한 뒤 반드시 `npm install`을 실행해 개발 의존성을 설치하세요.
+
+---

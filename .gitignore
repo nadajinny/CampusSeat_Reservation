@@ -1,0 +1,10 @@
+# Node / build artifacts
+node_modules/
+coverage/
+
+# OS / editor clutter
+.DS_Store
+*.log
+
+# Dependency locks for local use only (reproducible install handled via package-lock)
+package-lock.json
