@@ -1,20 +1,26 @@
-"""
+﻿"""
 api/v1/api.py - API v1 Router Aggregator
 ========================================
-모든 v1 API 라우터를 하나로 통합합니다.
+Registers all version 1 routers in the FastAPI application.
 """
 
 from fastapi import APIRouter
 
-from .endpoints import auth, seats, meeting_rooms
+from .endpoints import auth, seats, meeting_rooms, status
 
 api_router = APIRouter()
 
-# Auth 라우터 (prefix: /api/auth)
+# Auth routes (/api/auth)
 api_router.include_router(auth.router, prefix="/api")
 
-# Seats 라우터 (prefix: /seats)
+# Seat routes (/seats)
 api_router.include_router(seats.router)
 
-# Meeting Rooms 라우터 (prefix: /api/reservations/meeting-rooms)
+# Seat reservation routes (/api/reservations/seats)
+api_router.include_router(seats.reservation_router, prefix="/api")
+
+# Meeting-room routes (/api/reservations/meeting-rooms)
 api_router.include_router(meeting_rooms.router, prefix="/api")
+
+# Status routes (/api/status)
+api_router.include_router(status.router, prefix="/api")

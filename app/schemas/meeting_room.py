@@ -45,9 +45,8 @@ class MeetingRoomReservationCreate(BaseModel):
     start_time: Time = Field(..., description="시작 시간 (HH:MM)")
     end_time: Time = Field(..., description="종료 시간 (HH:MM)")
     participants: List[ParticipantBase] = Field(
-        ..., 
-        min_length=3, 
-        description="참여자 목록 (최소 3명)"
+        ...,
+        description="참여자 목록 (최소 3명)",
     )
     
     # ---------------------------------------------------------

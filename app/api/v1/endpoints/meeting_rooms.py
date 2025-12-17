@@ -12,18 +12,18 @@ api/v1/endpoints/meeting_rooms.py - Meeting Room Endpoints
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.database import get_db
 from app import schemas
+from app.api.docs import BAD_REQUEST, CONFLICT
+from app.database import get_db
 from app.schemas.common import ApiResponse
 from app.services import meeting_room_service
-from app.api.docs import CONFLICT, BAD_REQUEST
 
 router = APIRouter(prefix="/reservations/meeting-rooms", tags=["Meeting Room Reservations"])
 
 
 @router.post(
-    "", 
-    response_model=ApiResponse[schemas.ReservationResponse], 
+    "",
+    response_model=ApiResponse[schemas.ReservationResponse],
     status_code=status.HTTP_201_CREATED,
     # [핵심] 여기에 에러 응답 문서화 추가!
     # 400, 409 에러가 발생할 수 있음을 Swagger에게 알려줌
@@ -49,11 +49,11 @@ def create_meeting_room_reservation(
     - 주간 제한: 5시간
     """
     # TODO: 실제 인증 미들웨어가 붙으면 request.user.id 등으로 변경
-    student_id = 202312345 
+    student_id = 202312345
 
     # [수정 1] try-except 블록 제거!
     # 이제 에러가 발생하면 알아서 전역 핸들러(exception_handlers.py)로 날아갑니다.
-    
+
     # 1. 서비스 호출 (결과는 SQLAlchemy ORM 객체)
     reservation_orm = meeting_room_service.process_reservation(
         db=db,

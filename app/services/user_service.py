@@ -5,30 +5,31 @@ services/user_service.py - User Service
 """
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Union
+
 from sqlalchemy.orm import Session
 
-from .. import models
-from ..exceptions import BusinessException
-from ..constants import ErrorCode
+from app import models
+from app.constants import ErrorCode
+from app.exceptions import BusinessException
 
 # 차단된 학번 목록
 INVALID_STUDENT_IDS = {"202099999", "202288888"}
 
-def login_student(db: Session, student_id: int) -> models.User:
+
+def login_student(db: Session, student_id: Union[int, str]) -> models.User:
     """
     학생 로그인 처리
     """
-    # 1. 블랙리스트 확인
-    # 입력받은 student_id가 int형이므로 문자열 변환 후 비교하거나, set을 int로 관리
-    if str(student_id) in INVALID_STUDENT_IDS:
+    normalized = _normalize_student_id(student_id)
+
+    if normalized in INVALID_STUDENT_IDS:
         raise BusinessException(
-            code=ErrorCode.AUTH_FORBIDDEN,
-            message="접근이 제한된 학번입니다."
+            code=ErrorCode.AUTH_INVALID_STUDENT_ID,
+            message="접근이 제한된 학번입니다.",
         )
 
-    # 2. 유저 확보 (없으면 생성, 있으면 로그인 시간 갱신)
-    return get_or_create_user(db, student_id)
+    return get_or_create_user(db, int(normalized))
 
 
 def get_user(db: Session, student_id: int) -> Optional[models.User]:
@@ -42,7 +43,7 @@ def get_or_create_user(db: Session, student_id: int) -> models.User:
     """
     user = get_user(db, student_id)
     now_utc = datetime.now(timezone.utc)
-    
+
     if user:
         # 기존 유저: 로그인 시간만 갱신
         user.last_login_at = now_utc
@@ -50,11 +51,34 @@ def get_or_create_user(db: Session, student_id: int) -> models.User:
         # 신규 유저: 생성
         user = models.User(
             student_id=student_id,
-            last_login_at=now_utc
+            last_login_at=now_utc,
         )
         db.add(user)
-    
+
     db.commit()
     db.refresh(user)
-    
+
     return user
+
+
+def _normalize_student_id(raw_id: Union[int, str]) -> str:
+    """
+    학번 문자열을 정규화하고 형식 오류를 BusinessException으로 변환.
+    """
+    if isinstance(raw_id, int):
+        normalized = str(raw_id)
+    elif isinstance(raw_id, str):
+        normalized = raw_id.strip()
+    else:
+        raise BusinessException(
+            code=ErrorCode.VALIDATION_ERROR,
+            message="학번은 문자열 또는 숫자여야 합니다.",
+        )
+
+    if not (normalized.isdigit() and len(normalized) == 9):
+        raise BusinessException(
+            code=ErrorCode.VALIDATION_ERROR,
+            message="학번은 정확히 9자리 숫자여야 합니다.",
+        )
+
+    return normalized
