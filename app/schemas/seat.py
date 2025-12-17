@@ -5,6 +5,7 @@ schemas/seat.py - Seat Schemas
 """
 
 from datetime import date as Date, datetime, time as Time
+from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -38,16 +39,21 @@ class SeatCreate(BaseModel):
 
 
 class SeatReservationCreate(BaseModel):
-    """좌석 예약 생성 요청"""
+    """좌석 예약 생성 요청 (직접 선택 또는 랜덤 배정)"""
 
     date: Date = Field(..., description="예약 날짜 (YYYY-MM-DD)")
     start_time: Time = Field(..., description="시작 시간 (HH:MM)")
     end_time: Time = Field(..., description="종료 시간 (HH:MM)")
-    seat_id: int = Field(..., ge=1, description="좌석 번호")
+    seat_id: Optional[int] = Field(None, ge=1, description="좌석 번호 (랜덤 배정 시 None)")
 
     @field_validator("seat_id")
     @classmethod
-    def validate_seat_id(cls, value: int) -> int:
+    def validate_seat_id(cls, value: Optional[int]) -> Optional[int]:
+        # seat_id가 None이면 랜덤 배정 -> 검증 스킵
+        if value is None:
+            return value
+
+        # seat_id가 있으면 범위 검증
         if not (FacilityConstants.SEAT_MIN_ID <= value <= FacilityConstants.SEAT_MAX_ID):
             raise ValueError(
                 f"좌석 번호는 {FacilityConstants.SEAT_MIN_ID}~{FacilityConstants.SEAT_MAX_ID} 범위여야 합니다."

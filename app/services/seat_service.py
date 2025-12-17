@@ -2,6 +2,7 @@
 services/seat_service.py - Seat metadata and reservation helpers.
 """
 
+import random
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
@@ -61,22 +62,36 @@ def reserve_seat(
     student_id: int,
     request: SeatReservationCreate,
 ) -> models.Reservation:
-    """좌석 예약 엔드포인트에서 사용하는 비즈니스 로직."""
+    """좌석 예약 비즈니스 로직 (직접 선택 또는 랜덤 배정)."""
 
-    seat = get_seat(db, request.seat_id)
-    if seat is None:
-        raise BusinessException(
-            code=ErrorCode.NOT_FOUND,
-            message=f"좌석 ID {request.seat_id}번을 찾을 수 없습니다.",
-        )
-
+    # 시간 변환 (공통)
     start_dt_kst = datetime.combine(request.date, request.start_time, tzinfo=KST)
     end_dt_kst = datetime.combine(request.date, request.end_time, tzinfo=KST)
     start_dt_utc = start_dt_kst.astimezone(timezone.utc)
     end_dt_utc = end_dt_kst.astimezone(timezone.utc)
     duration_minutes = (end_dt_utc - start_dt_utc).total_seconds() / 60
 
-    _ensure_no_seat_conflict(db, request.seat_id, start_dt_utc, end_dt_utc)
+    # 1. 좌석 결정 (직접 선택 vs 랜덤 배정)
+    if request.seat_id is not None:
+        # 직접 선택 모드: 좌석 존재 확인
+        seat = get_seat(db, request.seat_id)
+        if seat is None:
+            raise BusinessException(
+                code=ErrorCode.NOT_FOUND,
+                message=f"좌석 ID {request.seat_id}번을 찾을 수 없습니다.",
+            )
+        selected_seat_id = request.seat_id
+    else:
+        # 랜덤 배정 모드: 가용 좌석 중 랜덤 선택
+        selected_seat_id = _find_random_available_seat(db, start_dt_utc, end_dt_utc)
+        if selected_seat_id is None:
+            raise ConflictException(
+                code=ErrorCode.RESERVATION_CONFLICT,
+                message="해당 시간대에 예약 가능한 좌석이 없습니다.",
+            )
+
+    # 2. 해당 좌석 중복 확인
+    _ensure_no_seat_conflict(db, selected_seat_id, start_dt_utc, end_dt_utc)
 
     if reservation_service.check_overlap_with_other_facility(
         db,
@@ -103,7 +118,7 @@ def reserve_seat(
     return reservation_service.create_seat_reservation(
         db=db,
         student_id=student_id,
-        seat_id=request.seat_id,
+        seat_id=selected_seat_id,  # 직접 선택 또는 랜덤 배정된 seat_id
         start_time=start_dt_utc,
         end_time=end_dt_utc,
     )
@@ -165,3 +180,51 @@ def _get_daily_seat_usage_minutes(
             for reservation in reservations
         )
     )
+
+
+def _find_random_available_seat(
+    db: Session,
+    start_time: datetime,
+    end_time: datetime,
+) -> Optional[int]:
+    """
+    주어진 시간대에 예약 가능한 좌석 중 하나를 랜덤으로 선택.
+
+    Args:
+        db: 데이터베이스 세션
+        start_time: 예약 시작 시간 (UTC)
+        end_time: 예약 종료 시간 (UTC)
+
+    Returns:
+        선택된 seat_id 또는 None (가용 좌석이 없는 경우)
+    """
+    from app.constants import FacilityConstants
+
+    # 1. 전체 좌석 ID 목록 (1~70)
+    all_seat_ids = list(range(
+        FacilityConstants.SEAT_MIN_ID,
+        FacilityConstants.SEAT_MAX_ID + 1
+    ))
+
+    # 2. 해당 시간대에 예약된 좌석 조회
+    occupied_seats = (
+        db.query(models.Reservation.seat_id)
+        .filter(
+            models.Reservation.seat_id.isnot(None),
+            models.Reservation.status == models.ReservationStatus.RESERVED,
+            models.Reservation.start_time < end_time,
+            models.Reservation.end_time > start_time,
+        )
+        .all()
+    )
+
+    occupied_seat_ids = {row[0] for row in occupied_seats if row[0] is not None}
+
+    # 3. 가용 좌석 = 전체 - 예약됨
+    available_seat_ids = [sid for sid in all_seat_ids if sid not in occupied_seat_ids]
+
+    # 4. 랜덤 선택
+    if not available_seat_ids:
+        return None
+
+    return random.choice(available_seat_ids)

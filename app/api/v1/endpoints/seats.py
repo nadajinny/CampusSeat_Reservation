@@ -132,3 +132,60 @@ def create_seat_reservation(
         code=None,
         payload=payload,
     )
+
+
+@reservation_router.post(
+    "/random",
+    response_model=ApiResponse[schemas.SeatReservationResponse],
+    status_code=status.HTTP_201_CREATED,
+    responses={**BAD_REQUEST, **CONFLICT},
+    summary="랜덤 좌석 예약",
+    description="""
+    가용한 좌석 중 하나를 자동으로 배정하여 예약합니다.
+
+    검증 항목 (Service 계층에서 처리):
+    - 운영시간/2시간 단위
+    - 가용 좌석 존재 여부
+    - 본인 좌석 1일 4시간 초과 금지
+    - 동일 시간대 회의실 예약(본인) 존재 금지
+
+    에러:
+    - 409 CONFLICT: 해당 시간대에 예약 가능한 좌석이 없습니다.
+    """,
+)
+def create_random_seat_reservation(
+    request: schemas.SeatReservationCreate,
+    db: Session = Depends(get_db),
+):
+    """
+    랜덤 좌석 예약 생성
+
+    """
+    # TODO: 인증 연동 후 request.user.id에서 student_id 추출
+    student_id = 202312345
+
+    # seat_id를 강제로 None으로 설정하여 랜덤 모드 활성화
+    request.seat_id = None
+
+    # 기존 reserve_seat 함수 재사용
+    reservation = seat_service.reserve_seat(db, student_id, request)
+
+    # 응답 생성
+    status_value = (
+        reservation.status.value if hasattr(reservation.status, "value") else reservation.status
+    )
+    payload = schemas.SeatReservationResponse(
+        reservation_id=reservation.reservation_id,
+        seat_id=reservation.seat_id,  # 랜덤 배정된 seat_id
+        date=request.date.isoformat(),
+        start_time=request.start_time.strftime("%H:%M"),
+        end_time=request.end_time.strftime("%H:%M"),
+        status=status_value,
+        type=ReservationType.SEAT,
+    )
+
+    return ApiResponse[schemas.SeatReservationResponse](
+        is_success=True,
+        code=None,
+        payload=payload,
+    )
