@@ -51,3 +51,39 @@ CONFLICT = {
         }
     }
 }
+
+UNAUTHORIZED = {
+    401: {
+        "model": ErrorResponse,
+        "description": "인증 실패",
+        "content": {
+            "application/json": {
+                "example": {
+                    "is_success": False,
+                    "code": ErrorCode.AUTH_UNAUTHORIZED,
+                    "payload": {
+                        "message": ERROR_MESSAGES[ErrorCode.AUTH_UNAUTHORIZED]
+                    }
+                }
+            }
+        }
+    }
+}
+
+FORBIDDEN = {
+    403: {
+        "model": ErrorResponse,
+        "description": "접근 권한 없음",
+        "content": {
+            "application/json": {
+                "example": {
+                    "is_success": False,
+                    "code": ErrorCode.AUTH_FORBIDDEN,
+                    "payload": {
+                        "message": ERROR_MESSAGES[ErrorCode.AUTH_FORBIDDEN]
+                    }
+                }
+            }
+        }
+    }
+}

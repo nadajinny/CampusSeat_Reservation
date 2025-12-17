@@ -31,7 +31,8 @@ class MeetingRoomResponse(MeetingRoomBase):
 # -------------------------------------------------------------------
 class ParticipantBase(UserBase):
     """참여자 정보"""
-    pass
+
+    name: str = Field(..., min_length=1, description="참여자 이름")
 
 
 class MeetingRoomReservationCreate(BaseModel):
@@ -46,7 +47,8 @@ class MeetingRoomReservationCreate(BaseModel):
     end_time: Time = Field(..., description="종료 시간 (HH:MM)")
     participants: List[ParticipantBase] = Field(
         ...,
-        description="참여자 목록 (최소 3명)",
+        min_length=ReservationLimits.MEETING_ROOM_MIN_PARTICIPANTS,
+        description=f"참여자 목록 (최소 {ReservationLimits.MEETING_ROOM_MIN_PARTICIPANTS}명)",
     )
     
     # ---------------------------------------------------------
