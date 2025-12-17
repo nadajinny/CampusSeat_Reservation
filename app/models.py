@@ -102,6 +102,8 @@ class Reservation(Base):
         Index('idx_student_start', 'student_id', 'start_time'),
         Index('idx_room_start', 'meeting_room_id', 'start_time', 'status'),
         Index('idx_seat_start', 'seat_id', 'start_time', 'status'),
+        Index('idx_status_start', 'status', 'start_time'),
+        Index('idx_status_end', 'status', 'end_time'),
     )
 
     reservation_id = Column(Integer, primary_key=True, autoincrement=True)

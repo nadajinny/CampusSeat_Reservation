@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 
+from app.scheduler import scheduler, update_reservation_status
 from app.database import engine, Base
 from app.init_db import initialize_data
 from app.api.v1 import api_router
@@ -21,7 +22,16 @@ async def lifespan(app: FastAPI):
     print("🚀 Starting up application...")
     Base.metadata.create_all(bind=engine)
     initialize_data()
+    
+    scheduler.add_job(update_reservation_status, 'cron', minute='*')
+    scheduler.start()
+    
+    print("🕒 Scheduler started.")
+    
     yield
+    
+    scheduler.shutdown()
+    print("🕒 Shutting down scheduler...")
     print("👋 Shutting down application...")
 
 # 2. FastAPI 앱 생성 (중복 제거됨)

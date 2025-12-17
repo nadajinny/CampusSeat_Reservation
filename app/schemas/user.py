@@ -71,15 +71,3 @@ class UserResponse(UserBase):
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S")
-
-
-# LoginResponse 타입을 명확히 정의 (기존 호환 유지 목적)
-class LoginSuccessResponse(BaseModel):
-    is_success: bool = True
-    payload: TokenPayload
-
-
-class LoginErrorResponse(BaseModel):
-    is_success: bool = False
-    code: str
-    payload: dict
