@@ -32,34 +32,13 @@ def get_meeting_room_status(
 
 @router.get(
     "/seats",
-    response_model=schemas.ApiResponse[schemas.SeatAvailabilityPayload],
+    response_model=schemas.ApiResponse[schemas.SeatStatusPayload],
 )
-def get_seat_availability(
-    date: date = Query(..., description="조회 날짜 (YYYY-MM-DD)"),
-    start_time: time = Query(..., description="시작 시각 (HH:MM)"),
-    end_time: time = Query(..., description="종료 시각 (HH:MM)"),
-    db: Session = Depends(get_db),
-):
-    """특정 시간대에 예약 가능한 좌석을 조회합니다."""
-
-    payload = status_service.get_seat_availability(
-        db=db,
-        target_date=date,
-        start_time=start_time,
-        end_time=end_time,
-    )
-    return schemas.ApiResponse(is_success=True, code=None, payload=payload)
-
-
-@router.get(
-    "/seats/slots",
-    response_model=schemas.ApiResponse[schemas.SeatSlotsPayload],
-)
-def get_seat_slot_status(
+def get_seat_status(
     date: date = Query(..., description="조회 날짜 (YYYY-MM-DD)"),
     db: Session = Depends(get_db),
 ):
-    """날짜별 좌석 2시간 슬롯 가용 여부를 조회합니다."""
+    """날짜별 좌석 예약 현황을 조회합니다."""
 
-    payload = status_service.get_seat_slot_status(db, date)
+    payload = status_service.get_seat_status(db, date)
     return schemas.ApiResponse(is_success=True, code=None, payload=payload)

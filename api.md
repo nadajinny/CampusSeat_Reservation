@@ -104,7 +104,7 @@
 
 ---
 
-## 2) “현재 예약 현황 조회”(b) API (허재민)(개발중)
+## 2) "현재 예약 현황 조회"(b) API (허재민)(개발중)
 
 ### 2.1 날짜별 회의실 예약 현황 조회
 
@@ -139,15 +139,13 @@
 }
 ```
 
-### 2.2 날짜+시간대별 좌석 가용 현황(빈좌석) 조회
+### 2.2 날짜별 좌석 예약 현황 조회
 
 **GET** `/api/status/seats`
 
 **Query**
 
 - `date` (필수) `YYYY-MM-DD`
-- `start_time` (필수) `HH:MM`
-- `end_time` (필수) `HH:MM`
 
 **Success 200**
 
@@ -157,36 +155,18 @@
   "code": null,
   "payload": {
     "date": "2025-12-20",
-    "time_range": { "start": "09:00", "end": "11:00" },
-    "total_seats": 70,
-    "available_seat_ids": [1,2,5,8,70],
-    "available_count": 5
-  }
-}
-```
-
-### 2.3 날짜별 좌석 시간대 가용 여부(시간대만)
-
-“그 날짜에 빈좌석이 있는 시간대가 뭐가 있는지”를 빠르게 보여주기 위한 API
-
-**GET** `/api/status/seats/slots`
-
-**Query**
-
-- `date` (필수) `YYYY-MM-DD`
-
-**Success 200**
-
-```json
-{
-  "is_success": true,
-  "code": null,
-  "payload": {
-    "date": "2025-12-20",
+    "operation_hours": { "start": "09:00", "end": "18:00" },
     "slot_unit_minutes": 120,
-    "slots": [
-      { "start": "09:00", "end": "11:00", "has_available_seat": true },
-      { "start": "11:00", "end": "13:00", "has_available_seat": false }
+    "seats": [
+      {
+        "seat_id": 1,
+        "slots": [
+          { "start": "09:00", "end": "11:00", "is_available": true },
+          { "start": "11:00", "end": "13:00", "is_available": false },
+          { "start": "13:00", "end": "15:00", "is_available": true },
+          { "start": "15:00", "end": "17:00", "is_available": true }
+        ]
+      }
     ]
   }
 }

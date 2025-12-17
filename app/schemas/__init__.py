@@ -45,9 +45,9 @@ from .status import (
     MeetingRoomSlotStatus,
     MeetingRoomRoomStatus,
     MeetingRoomStatusPayload,
-    SeatAvailabilityPayload,
     SeatSlotStatus,
-    SeatSlotsPayload,
+    SeatSeatStatus,
+    SeatStatusPayload,
 )
 __all__ = [
     "ApiResponse",
@@ -73,7 +73,7 @@ __all__ = [
     "MeetingRoomSlotStatus",
     "MeetingRoomRoomStatus",
     "MeetingRoomStatusPayload",
-    "SeatAvailabilityPayload",
     "SeatSlotStatus",
-    "SeatSlotsPayload",
+    "SeatSeatStatus",
+    "SeatStatusPayload",
 ]
