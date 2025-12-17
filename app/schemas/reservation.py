@@ -1,7 +1,7 @@
 """
 schemas/reservation.py
 """
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, Field, field_serializer
 
@@ -33,10 +33,32 @@ class ReservationResponse(ReservationBase):
     def serialize_dt(self, dt: datetime, _info):
         if dt is None:
             return None
-            
+
         # 1. DB에서 꺼낸 시간이 timezone 정보가 없다면 UTC라고 명시
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
-            
+
         # 2. KST(UTC+9)로 변환 후 문자열로 예쁘게 포맷팅
         return dt.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S")
+
+
+# -------------------------------------------------------------------
+# 3. My Reservations List Schema
+# -------------------------------------------------------------------
+class MyReservationItem(BaseModel):
+    """내 예약 목록 아이템 (회의실/좌석 통합)"""
+
+    reservation_id: int = Field(..., description="예약 ID")
+    type: str = Field(..., description="예약 유형 (meeting_room | seat)")
+    room_id: Optional[int] = Field(None, description="회의실 ID (type=meeting_room일 때)")
+    seat_id: Optional[int] = Field(None, description="좌석 ID (type=seat일 때)")
+    date: str = Field(..., description="예약 날짜 (YYYY-MM-DD)")
+    start_time: str = Field(..., description="시작 시간 (HH:MM)")
+    end_time: str = Field(..., description="종료 시간 (HH:MM)")
+    status: str = Field(..., description="예약 상태")
+
+
+class MyReservationsPayload(BaseModel):
+    """내 예약 목록 응답"""
+
+    items: List[MyReservationItem] = Field(default_factory=list, description="예약 목록")

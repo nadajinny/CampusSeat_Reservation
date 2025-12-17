@@ -32,7 +32,12 @@ from .meeting_room import (
 )
 
 # Reservation
-from .reservation import ReservationResponse, ReservationBase
+from .reservation import (
+    ReservationResponse,
+    ReservationBase,
+    MyReservationItem,
+    MyReservationsPayload,
+)
 
 # Status
 from .status import (
@@ -62,6 +67,8 @@ __all__ = [
     "ParticipantBase",
     "ReservationResponse",
     "ReservationBase",
+    "MyReservationItem",
+    "MyReservationsPayload",
     "TimeRange",
     "MeetingRoomSlotStatus",
     "MeetingRoomRoomStatus",
