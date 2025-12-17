@@ -21,15 +21,14 @@ def login_student(db: Session, student_id: Union[int, str]) -> models.User:
     """
     학생 로그인 처리
     """
-    normalized = _normalize_student_id(student_id)
 
-    if normalized in INVALID_STUDENT_IDS:
+    if student_id in INVALID_STUDENT_IDS:
         raise BusinessException(
             code=ErrorCode.AUTH_INVALID_STUDENT_ID,
             message="접근이 제한된 학번입니다.",
         )
 
-    return get_or_create_user(db, int(normalized))
+    return get_or_create_user(db, int(student_id))
 
 
 def get_user(db: Session, student_id: int) -> Optional[models.User]:
@@ -59,26 +58,3 @@ def get_or_create_user(db: Session, student_id: int) -> models.User:
     db.refresh(user)
 
     return user
-
-
-def _normalize_student_id(raw_id: Union[int, str]) -> str:
-    """
-    학번 문자열을 정규화하고 형식 오류를 BusinessException으로 변환.
-    """
-    if isinstance(raw_id, int):
-        normalized = str(raw_id)
-    elif isinstance(raw_id, str):
-        normalized = raw_id.strip()
-    else:
-        raise BusinessException(
-            code=ErrorCode.VALIDATION_ERROR,
-            message="학번은 문자열 또는 숫자여야 합니다.",
-        )
-
-    if not (normalized.isdigit() and len(normalized) == 9):
-        raise BusinessException(
-            code=ErrorCode.VALIDATION_ERROR,
-            message="학번은 정확히 9자리 숫자여야 합니다.",
-        )
-
-    return normalized

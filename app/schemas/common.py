@@ -17,17 +17,6 @@ class ErrorPayload(BaseModel):
     # [추가] 상세 에러 정보를 담을 수 있는 유연한 필드
     details: Optional[Dict[str, Any]] = Field(default=None, description="에러 상세 정보 (선택)")
 
-
-class ErrorResponseModel(BaseModel):
-    """Swagger ??? ??? ?? ?? ?? ??."""
-    is_success: bool = Field(False, description="?? False", example=False)
-    code: str = Field(..., description="???? ?? ??", example="VALIDATION_ERROR")
-    payload: ErrorPayload = Field(
-        ...,
-        description="?? ???? ?? payload",
-        example={"message": "???? ?? ?????."},
-    )
-
 class ApiResponse(BaseModel, Generic[T]):
     """
     공통 API 응답 포맷 (Generic)

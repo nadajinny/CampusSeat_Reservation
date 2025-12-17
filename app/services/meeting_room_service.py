@@ -124,6 +124,7 @@ def check_room_conflict(db: Session, room_id: int, start_time: datetime) -> bool
         )
         .first()
     )
+    
     return conflict is not None
 
 

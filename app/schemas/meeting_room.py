@@ -31,8 +31,8 @@ class MeetingRoomResponse(MeetingRoomBase):
 # -------------------------------------------------------------------
 class ParticipantBase(UserBase):
     """참여자 정보"""
-
-    name: str = Field(..., min_length=1, description="참여자 이름")
+    
+    pass
 
 
 class MeetingRoomReservationCreate(BaseModel):

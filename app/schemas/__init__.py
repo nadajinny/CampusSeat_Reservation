@@ -5,7 +5,7 @@ Pydantic 스키마 모듈
 """
 
 # Common
-from .common import ApiResponse, ErrorPayload, ErrorResponseModel
+from .common import ApiResponse, ErrorPayload
 
 # User
 from .user import (
@@ -52,7 +52,6 @@ from .status import (
 __all__ = [
     "ApiResponse",
     "ErrorPayload",
-    "ErrorResponseModel",
     "LoginRequest",
     "TokenPayload",
     "UserResponse",
