@@ -20,38 +20,6 @@ BAD_REQUEST = {
     }
 }
 
-NOT_FOUND = {
-    404: {
-        "model": ErrorResponse,
-        "description": "리소스를 찾을 수 없음",
-        "content": {
-            "application/json": {
-                "example": {
-                    "is_success": False,
-                    "code": ErrorCode.NOT_FOUND,
-                    "payload": {"message": ERROR_MESSAGES[ErrorCode.NOT_FOUND]}
-                }
-            }
-        }
-    }
-}
-
-CONFLICT = {
-    409: {
-        "model": ErrorResponse,
-        "description": "리소스 충돌",
-        "content": {
-            "application/json": {
-                "example": {
-                    "is_success": False,
-                    "code": ErrorCode.RESERVATION_CONFLICT,
-                    "payload": {"message": ERROR_MESSAGES[ErrorCode.RESERVATION_CONFLICT]}
-                }
-            }
-        }
-    }
-}
-
 UNAUTHORIZED = {
     401: {
         "model": ErrorResponse,
@@ -87,3 +55,36 @@ FORBIDDEN = {
         }
     }
 }
+
+NOT_FOUND = {
+    404: {
+        "model": ErrorResponse,
+        "description": "리소스를 찾을 수 없음",
+        "content": {
+            "application/json": {
+                "example": {
+                    "is_success": False,
+                    "code": ErrorCode.NOT_FOUND,
+                    "payload": {"message": ERROR_MESSAGES[ErrorCode.NOT_FOUND]}
+                }
+            }
+        }
+    }
+}
+
+CONFLICT = {
+    409: {
+        "model": ErrorResponse,
+        "description": "리소스 충돌",
+        "content": {
+            "application/json": {
+                "example": {
+                    "is_success": False,
+                    "code": ErrorCode.RESERVATION_CONFLICT,
+                    "payload": {"message": ERROR_MESSAGES[ErrorCode.RESERVATION_CONFLICT]}
+                }
+            }
+        }
+    }
+}
+
