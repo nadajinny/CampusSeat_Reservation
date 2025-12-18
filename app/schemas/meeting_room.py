@@ -4,18 +4,18 @@ schemas/meeting_room.py - Meeting Room Schemas
 회의실 정보 및 예약 요청 스키마
 """
 
-from typing import List, Self
+from typing import List, Self, Optional
 from datetime import date as Date, time as Time, datetime, timedelta
 from pydantic import BaseModel, Field, model_validator, field_validator
 
-from app.constants import OperationHours, ReservationLimits
+from app.constants import OperationHours, ReservationLimits, FacilityConstants
 from app.schemas.user import UserBase
 
 # -------------------------------------------------------------------
 # 1. Meeting Room Entity Schemas
 # -------------------------------------------------------------------
 class MeetingRoomBase(BaseModel):
-    room_id: int = Field(..., ge=1, le=3, description="회의실 ID (1-3)")
+    room_id: int = Field(..., description="회의실 ID (1-3)")
     min_capacity: int = Field(3, description="최소 수용 인원")
     max_capacity: int = Field(6, description="최대 수용 인원")
     is_available: bool = Field(True, description="사용 가능 여부")
@@ -31,7 +31,6 @@ class MeetingRoomResponse(MeetingRoomBase):
 # -------------------------------------------------------------------
 class ParticipantBase(UserBase):
     """참여자 정보"""
-    
     pass
 
 
@@ -41,7 +40,7 @@ class MeetingRoomReservationCreate(BaseModel):
     - 입력 편의를 위해 Date와 Time을 분리해서 받음
     - 서비스 계층에서 datetime으로 합쳐질 예정
     """
-    room_id: int = Field(..., ge=1, le=3, description="회의실 ID")
+    room_id: int = Field(..., description="회의실 ID")
     date: Date = Field(..., description="예약 날짜 (YYYY-MM-DD)")
     start_time: Time = Field(..., description="시작 시간 (HH:MM)")
     end_time: Time = Field(..., description="종료 시간 (HH:MM)")
@@ -52,7 +51,33 @@ class MeetingRoomReservationCreate(BaseModel):
     )
     
     # ---------------------------------------------------------
-    # [NEW] 참여자 중복 검증 (필드 검증)
+    # 회의실 ID 검증 (Constants 기반)
+    # ---------------------------------------------------------
+    @field_validator("room_id")
+    @classmethod
+    def validate_room_id(cls, v: int) -> int:
+        """
+        입력된 room_id가 constants.py에 정의된 유효한 ID 목록에 있는지 확인
+        """
+        allowed_ids = FacilityConstants.MEETING_ROOM_IDS
+        if v not in allowed_ids:
+            raise ValueError(f"유효하지 않은 회의실 ID입니다. (허용 ID: {allowed_ids})")
+        return v
+    
+    # ---------------------------------------------------------
+    # 날짜 검증 (좌석 스키마와 동일하게 적용)
+    # ---------------------------------------------------------
+    @field_validator("date")
+    @classmethod
+    def validate_date_not_past(cls, value: Date) -> Date:
+        """과거 날짜 예약 방지"""
+        today = Date.today()
+        if value < today:
+            raise ValueError("과거 날짜는 예약할 수 없습니다.")
+        return value
+    
+    # ---------------------------------------------------------
+    # 참여자 중복 검증 (필드 검증)
     # ---------------------------------------------------------
     @field_validator('participants')
     @classmethod
@@ -113,4 +138,10 @@ class MeetingRoomReservationCreate(BaseModel):
         if duration != ReservationLimits.MEETING_ROOM_SLOT_MINUTES:
             raise ValueError(f"회의실은 {ReservationLimits.MEETING_ROOM_SLOT_MINUTES}분(1시간) 단위로만 예약 가능합니다.")
 
+        # 4. 당일 예약 시 현재 시간 이후인지 확인 (좌석 로직 반영)
+        if self.date == Date.today():
+            now = datetime.now().time() # 서버 로컬 시간 기준(KST 권장)
+            if start <= now:
+                raise ValueError("현재 시간 이후부터 예약할 수 있습니다.")
+            
         return self

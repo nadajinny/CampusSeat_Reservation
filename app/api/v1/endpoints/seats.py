@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app import schemas
 from app.api.docs import BAD_REQUEST, CONFLICT, NOT_FOUND
+from app.auth.deps import get_current_student_id
 from app.constants import ErrorCode, ReservationType
 from app.database import get_db
 from app.exceptions import BusinessException
@@ -99,6 +100,7 @@ def read_seat(seat_id: int, db: Session = Depends(get_db)):
 def create_seat_reservation(
     request: schemas.SeatReservationCreate,
     db: Session = Depends(get_db),
+    student_id: int = Depends(get_current_student_id),
 ):
     """
     좌석 예약 생성
@@ -110,8 +112,6 @@ def create_seat_reservation(
     - 동일 시간대 회의실 예약(본인) 존재 금지
     """
 
-    # TODO: 인증 연동 후 request.user.id에서 student_id를 추출
-    student_id = 202312345
     reservation = seat_service.reserve_seat(db, student_id, request)
 
     status_value = (
@@ -156,14 +156,12 @@ def create_seat_reservation(
 def create_random_seat_reservation(
     request: schemas.SeatReservationCreate,
     db: Session = Depends(get_db),
+    student_id: int = Depends(get_current_student_id),
 ):
     """
     랜덤 좌석 예약 생성
 
     """
-    # TODO: 인증 연동 후 request.user.id에서 student_id 추출
-    student_id = 202312345
-
     # seat_id를 강제로 None으로 설정하여 랜덤 모드 활성화
     request.seat_id = None
 

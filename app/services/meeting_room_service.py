@@ -17,12 +17,35 @@ from app.services import reservation_service, user_service
 # 한국 시간대 정의
 KST = timezone(timedelta(hours=9))
 
+# 충돌 검사용: 해당 시설이 현재 점유 중인지 확인
+CONFLICT_CHECK_STATUSES = [
+    models.ReservationStatus.RESERVED,
+    models.ReservationStatus.IN_USE,
+]
+
+# 한도 계산용: 총 사용량 계산 (완료된 것도 포함, 취소만 제외)
+USAGE_COUNT_STATUSES = [
+    models.ReservationStatus.RESERVED,
+    models.ReservationStatus.IN_USE,
+    models.ReservationStatus.COMPLETED,
+]
+
 
 def process_reservation(
     db: Session,
     student_id: int,
     request: schemas.MeetingRoomReservationCreate,
 ) -> models.Reservation:
+    
+    # 0. 회의실 존재 및 상태 검증 (스키마 검증 이후 DB 레벨 확인)
+    room = db.query(models.MeetingRoom).filter(models.MeetingRoom.room_id == request.room_id).first()
+
+    if not room:
+        raise ValidationException(
+            code=ErrorCode.NOT_FOUND,
+            message="존재하지 않는 회의실입니다.",
+        )
+
     min_participants = constants.ReservationLimits.MEETING_ROOM_MIN_PARTICIPANTS
     if len(request.participants) < min_participants:
         raise ValidationException(
@@ -44,47 +67,6 @@ def process_reservation(
     duration_minutes = (end_dt_utc - start_dt_utc).total_seconds() / 60
 
     # ---------------------------------------------------
-    # 2. 비즈니스 로직 검증 (커스텀 예외 적용 완료)
-    # ---------------------------------------------------
-
-    # 2-1. 회의실 중복 예약 확인
-    if check_room_conflict(db, request.room_id, start_dt_utc):
-        raise ConflictException(
-            code=ErrorCode.RESERVATION_CONFLICT,
-            message="해당 회의실은 이미 예약되어 있습니다.",
-        )
-
-    # 2-2. 사용자 중복 이용(다른 시설 포함) 확인
-    if reservation_service.check_overlap_with_other_facility(
-        db,
-        student_id,
-        start_dt_utc,
-        end_dt_utc,
-    ):
-        raise ConflictException(
-            code=ErrorCode.OVERLAP_WITH_OTHER_FACILITY,
-            message="동일 시간에 다른 시설 예약이 존재합니다.",
-        )
-
-    # 2-3. 일일 이용 한도 확인
-    daily_used = check_user_daily_meeting_limit(db, student_id, start_dt_utc)
-    limit_daily = constants.ReservationLimits.MEETING_ROOM_DAILY_LIMIT_MINUTES
-    if daily_used + duration_minutes > limit_daily:
-        raise LimitExceededException(
-            code=ErrorCode.DAILY_LIMIT_EXCEEDED,
-            message=f"일일 이용 한도({limit_daily}분)를 초과했습니다. (현재: {daily_used}분 사용 중)",
-        )
-
-    # 2-4. 주간 이용 한도 확인
-    weekly_used = check_user_weekly_meeting_limit(db, student_id, start_dt_utc)
-    limit_weekly = constants.ReservationLimits.MEETING_ROOM_WEEKLY_LIMIT_MINUTES
-    if weekly_used + duration_minutes > limit_weekly:
-        raise LimitExceededException(
-            code=ErrorCode.WEEKLY_LIMIT_EXCEEDED,
-            message=f"주간 이용 한도({limit_weekly}분)를 초과했습니다. (현재: {weekly_used}분 사용 중)",
-        )
-
-    # ---------------------------------------------------
     # 3. 유저 처리 및 예약 생성 (Action)
     # ---------------------------------------------------
 
@@ -96,6 +78,43 @@ def process_reservation(
     for participant in request.participants:
         user_service.get_or_create_user(db, participant.student_id)
         participant_ids.append(participant.student_id)
+
+    
+    # 2-1. 회의실 중복 예약 확인
+    if check_room_conflict(db, request.room_id, start_dt_utc, end_dt_utc):
+        raise ConflictException(
+            code=ErrorCode.RESERVATION_CONFLICT,
+            message="해당 회의실은 이미 예약되어 있습니다.",
+        )
+
+    # 2-2. 신청자/참여자 모두 중복 이용(좌석·회의실) 확인
+    participants_all = {student_id} | {p.student_id for p in request.participants}
+    for pid in participants_all:
+        if _has_overlap_for_user(db, pid, start_dt_utc, end_dt_utc):
+            raise ConflictException(
+                code=ErrorCode.OVERLAP_WITH_OTHER_FACILITY,
+                message=f"사용자 {pid}의 동일 시간대 예약이 이미 존재합니다.",
+            )
+
+    # 2-3. 일일/주간 이용 한도 확인 (신청자 + 참여자 모두)
+    limit_daily = constants.ReservationLimits.MEETING_ROOM_DAILY_LIMIT_MINUTES
+    limit_weekly = constants.ReservationLimits.MEETING_ROOM_WEEKLY_LIMIT_MINUTES
+
+    for pid in participants_all:
+        daily_used = check_user_daily_meeting_limit(db, pid, start_dt_utc)
+        if daily_used + duration_minutes > limit_daily:
+            raise LimitExceededException(
+                code=ErrorCode.DAILY_LIMIT_EXCEEDED,
+                message=f"사용자 {pid}의 일일 이용 한도({limit_daily}분)를 초과했습니다. (현재: {daily_used}분 사용 중)",
+            )
+
+        weekly_used = check_user_weekly_meeting_limit(db, pid, start_dt_utc)
+        if weekly_used + duration_minutes > limit_weekly:
+            raise LimitExceededException(
+                code=ErrorCode.WEEKLY_LIMIT_EXCEEDED,
+                message=f"사용자 {pid}의 주간 이용 한도({limit_weekly}분)를 초과했습니다. (현재: {weekly_used}분 사용 중)",
+            )
+
 
     # 3-3. 최종 예약 생성 (Reservation Service에게 위임)
     new_reservation = reservation_service.create_meeting_room_reservation(
@@ -113,35 +132,44 @@ def process_reservation(
 # --- 내부 지원 함수들 (DB 조회용) ---
 
 
-def check_room_conflict(db: Session, room_id: int, start_time: datetime) -> bool:
+def check_room_conflict(db: Session, room_id: int, start_time: datetime, end_time: datetime) -> bool:
     """회의실 중복 예약 확인"""
     conflict = (
         db.query(models.Reservation)
         .filter(
             models.Reservation.meeting_room_id == room_id,
-            models.Reservation.start_time == start_time,
-            models.Reservation.status == models.ReservationStatus.RESERVED,
+            models.Reservation.status.in_(CONFLICT_CHECK_STATUSES),
+            models.Reservation.start_time < end_time,
+            models.Reservation.end_time > start_time,
         )
         .first()
     )
-    
+
     return conflict is not None
 
 
 def check_user_daily_meeting_limit(db: Session, student_id: int, target_date: datetime) -> int:
-    """일일 사용량 계산"""
+    """일일 사용량 계산 (본인 예약 + 참여 예약 포함)"""
     start_of_day = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_day = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
 
     reservations = (
         db.query(models.Reservation)
+        .outerjoin(
+            models.ReservationParticipant,
+            models.Reservation.reservation_id == models.ReservationParticipant.reservation_id,
+        )
         .filter(
-            models.Reservation.student_id == student_id,
             models.Reservation.meeting_room_id.isnot(None),
-            models.Reservation.status == models.ReservationStatus.RESERVED,
+            models.Reservation.status.in_(USAGE_COUNT_STATUSES),
             models.Reservation.start_time >= start_of_day,
             models.Reservation.start_time <= end_of_day,
+            (
+                (models.Reservation.student_id == student_id) |
+                (models.ReservationParticipant.participant_student_id == student_id)
+            ),
         )
+        .distinct(models.Reservation.reservation_id)
         .all()
     )
 
@@ -149,20 +177,28 @@ def check_user_daily_meeting_limit(db: Session, student_id: int, target_date: da
 
 
 def check_user_weekly_meeting_limit(db: Session, student_id: int, target_date: datetime) -> int:
-    """주간 사용량 계산"""
+    """주간 사용량 계산 (본인 예약 + 참여 예약 포함)"""
     start_of_week = target_date - timedelta(days=target_date.weekday())
     start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_week = start_of_week + timedelta(days=6, hours=23, minutes=59, seconds=59)
 
     reservations = (
         db.query(models.Reservation)
+        .outerjoin(
+            models.ReservationParticipant,
+            models.Reservation.reservation_id == models.ReservationParticipant.reservation_id,
+        )
         .filter(
-            models.Reservation.student_id == student_id,
             models.Reservation.meeting_room_id.isnot(None),
-            models.Reservation.status == models.ReservationStatus.RESERVED,
+            models.Reservation.status.in_(USAGE_COUNT_STATUSES),
             models.Reservation.start_time >= start_of_week,
             models.Reservation.start_time <= end_of_week,
+            (
+                (models.Reservation.student_id == student_id) |
+                (models.ReservationParticipant.participant_student_id == student_id)
+            ),
         )
+        .distinct(models.Reservation.reservation_id)
         .all()
     )
 
@@ -181,3 +217,49 @@ def _calculate_total_minutes(reservations: List[models.Reservation]) -> int:
             for reservation in reservations
         )
     )
+
+
+def _has_overlap_for_user(
+    db: Session,
+    student_id: int,
+    start_time: datetime,
+    end_time: datetime,
+) -> bool:
+    """
+    주어진 시간대에 해당 사용자가 이미 회의실/좌석 예약(소유 또는 회의실 참여) 중인지 확인.
+    """
+    # 회의실: 본인 예약 또는 참여 예약
+    meeting_conflict = (
+        db.query(models.Reservation)
+        .outerjoin(
+            models.ReservationParticipant,
+            models.Reservation.reservation_id == models.ReservationParticipant.reservation_id,
+        )
+        .filter(
+            models.Reservation.meeting_room_id.isnot(None),
+            models.Reservation.status.in_(CONFLICT_CHECK_STATUSES),
+            models.Reservation.start_time < end_time,
+            models.Reservation.end_time > start_time,
+            (
+                (models.Reservation.student_id == student_id) |
+                (models.ReservationParticipant.participant_student_id == student_id)
+            ),
+        )
+        .first()
+    )
+    if meeting_conflict:
+        return True
+
+    # 좌석: 본인 예약만 존재하므로 student_id 기준
+    seat_conflict = (
+        db.query(models.Reservation)
+        .filter(
+            models.Reservation.seat_id.isnot(None),
+            models.Reservation.student_id == student_id,
+            models.Reservation.status.in_(CONFLICT_CHECK_STATUSES),
+            models.Reservation.start_time < end_time,
+            models.Reservation.end_time > start_time,
+        )
+        .first()
+    )
+    return seat_conflict is not None

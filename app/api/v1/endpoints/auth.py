@@ -10,7 +10,7 @@ Thin Controller 패턴으로 로그인 API를 제공합니다.
 """
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Response
 from sqlalchemy.orm import Session
 
 from app.api.docs import BAD_REQUEST, FORBIDDEN, UNAUTHORIZED
@@ -30,6 +30,7 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 )
 def login(
     request: user_schemas.LoginRequest,
+    response: Response,
     db: Session = Depends(get_db),
 ):
     """
@@ -38,7 +39,15 @@ def login(
     검증/비즈니스 규칙은 service 계층에서 처리됩니다.
     """
     user = user_service.login_student(db, request.student_id)
-    token = f"token-{uuid4().hex}"
+    token = f"token-{user.student_id}-{uuid4().hex}"
+    # Swagger나 브라우저 호출 시 자동 전파되도록 쿠키에도 저장
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        samesite="lax",
+        path="/",
+    )
     return ApiResponse(
         is_success=True,
         code=None,

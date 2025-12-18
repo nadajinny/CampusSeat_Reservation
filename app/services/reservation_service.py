@@ -3,11 +3,17 @@ services/reservation_service.py - Reservation persistence helpers.
 """
 
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
 from app import models
+
+# 충돌 검사용: 해당 시설이 현재 점유 중인지 확인 (예약됨, 사용 중)
+CONFLICT_CHECK_STATUSES = [
+    models.ReservationStatus.RESERVED,
+    models.ReservationStatus.IN_USE,
+]
 
 
 def check_overlap_with_other_facility(
@@ -20,24 +26,60 @@ def check_overlap_with_other_facility(
 ) -> bool:
     """
     사용자가 동일 시간대에 다른 시설 예약을 가지고 있는지 확인.
+    
+    검사 범위:
+    1. 본인이 예약자(Owner)인 모든 예약 (좌석/회의실)
+    2. 본인이 참여자(Participant)로 포함된 예약 (회의실) - [추가됨]
     """
 
     if not include_seats and not include_meeting_rooms:
         return False
 
-    query = db.query(models.Reservation).filter(
+    # ----------------------------------------------------------------
+    # 1. [Owner] 내가 예약자(주인)인 경우 확인
+    # ----------------------------------------------------------------
+    query_owner = db.query(models.Reservation).filter(
         models.Reservation.student_id == student_id,
-        models.Reservation.status == models.ReservationStatus.RESERVED,
+        models.Reservation.status.in_(CONFLICT_CHECK_STATUSES),
         models.Reservation.start_time < end_time,
         models.Reservation.end_time > start_time,
     )
 
     if include_seats and not include_meeting_rooms:
-        query = query.filter(models.Reservation.seat_id.isnot(None))
+        # 좌석만 체크하는 경우
+        query_owner = query_owner.filter(models.Reservation.seat_id.isnot(None))
     elif include_meeting_rooms and not include_seats:
-        query = query.filter(models.Reservation.meeting_room_id.isnot(None))
+        # 회의실만 체크하는 경우
+        query_owner = query_owner.filter(models.Reservation.meeting_room_id.isnot(None))
+    
+    # (둘 다 True면 전체 조회)
 
-    return query.first() is not None
+    if query_owner.first() is not None:
+        return True
+
+    # ----------------------------------------------------------------
+    # 2. [Participant] 내가 참여자로 포함된 경우 확인 (회의실 한정)
+    # ----------------------------------------------------------------
+    # 좌석은 참여자 개념이 없으므로, 회의실을 체크해야 할 때만 수행합니다.
+    if include_meeting_rooms:
+        query_participant = (
+            db.query(models.Reservation)
+            .join(
+                models.ReservationParticipant,
+                models.Reservation.reservation_id == models.ReservationParticipant.reservation_id
+            )
+            .filter(
+                models.ReservationParticipant.participant_student_id == student_id, # 내 학번이 참여자 명단에 있는지
+                models.Reservation.status.in_(CONFLICT_CHECK_STATUSES),
+                models.Reservation.start_time < end_time,
+                models.Reservation.end_time > start_time,
+            )
+        )
+        
+        if query_participant.first() is not None:
+            return True
+
+    return False
 
 
 def create_meeting_room_reservation(
@@ -48,10 +90,7 @@ def create_meeting_room_reservation(
     end_time: datetime,
     participant_ids: List[int],
 ) -> models.Reservation:
-    """
-    회의실 예약 엔터티를 생성한다.
-    """
-
+    """회의실 예약 엔터티 생성"""
     reservation = models.Reservation(
         student_id=student_id,
         meeting_room_id=room_id,
@@ -61,7 +100,7 @@ def create_meeting_room_reservation(
         status=models.ReservationStatus.RESERVED,
     )
     db.add(reservation)
-    db.flush()
+    db.flush() # reservation_id 생성을 위해 flush
 
     for participant_id in participant_ids:
         participant = models.ReservationParticipant(
@@ -72,7 +111,6 @@ def create_meeting_room_reservation(
 
     db.commit()
     db.refresh(reservation)
-
     return reservation
 
 
@@ -83,8 +121,7 @@ def create_seat_reservation(
     start_time: datetime,
     end_time: datetime,
 ) -> models.Reservation:
-    """좌석 예약 레코드를 생성한다."""
-
+    """좌석 예약 엔터티 생성"""
     reservation = models.Reservation(
         student_id=student_id,
         meeting_room_id=None,
@@ -100,14 +137,30 @@ def create_seat_reservation(
 
 
 def get_user_reservations(db: Session, student_id: int) -> List[models.Reservation]:
-    """특정 사용자 예약 내역 조회"""
-
-    return (
+    """
+    내 예약 목록 조회 (예약자 + 참여자)
+    """
+    # 1. 내가 예약한 것
+    owned = (
         db.query(models.Reservation)
         .filter(models.Reservation.student_id == student_id)
-        .order_by(models.Reservation.start_time.desc())
         .all()
     )
+
+    # 2. 내가 참여자로 포함된 것
+    participating = (
+        db.query(models.Reservation)
+        .join(
+            models.ReservationParticipant,
+            models.Reservation.reservation_id == models.ReservationParticipant.reservation_id,
+        )
+        .filter(models.ReservationParticipant.participant_student_id == student_id)
+        .all()
+    )
+
+    # 병합 및 정렬 (중복 제거)
+    merged = {res.reservation_id: res for res in owned + participating}
+    return sorted(merged.values(), key=lambda r: r.start_time, reverse=True)
 
 
 def cancel_reservation(
@@ -115,18 +168,10 @@ def cancel_reservation(
     reservation_id: int,
     student_id: int
 ) -> models.Reservation:
-    """
-    예약 취소 (상태 변경)
-
-    검증:
-    - 예약 존재 여부
-    - 본인 예약인지 확인
-    - 예약 상태 확인 (RESERVED 상태만 취소 가능)
-    """
+    """예약 취소"""
     from app.constants import ErrorCode
     from app.exceptions import BusinessException, ForbiddenException
 
-    # 1. 예약 조회
     reservation = (
         db.query(models.Reservation)
         .filter(models.Reservation.reservation_id == reservation_id)
@@ -139,40 +184,24 @@ def cancel_reservation(
             message=f"예약 ID {reservation_id}를 찾을 수 없습니다.",
         )
 
-    # 2. 본인 예약 확인
     if reservation.student_id != student_id:
         raise ForbiddenException(
             code=ErrorCode.AUTH_FORBIDDEN,
             message="본인의 예약만 취소할 수 있습니다.",
         )
 
-    # 3. 예약 상태 확인 - RESERVED 상태만 취소 가능
     if reservation.status == models.ReservationStatus.CANCELED:
         raise BusinessException(
             code=ErrorCode.RESERVATION_ALREADY_CANCELED,
             message="이미 취소된 예약입니다.",
         )
-
-    if reservation.status == models.ReservationStatus.IN_USE:
-        raise ForbiddenException(
-            code=ErrorCode.AUTH_FORBIDDEN,
-            message="사용 중인 예약은 취소할 수 없습니다.",
-        )
-
-    if reservation.status == models.ReservationStatus.COMPLETED:
-        raise ForbiddenException(
-            code=ErrorCode.AUTH_FORBIDDEN,
-            message="완료된 예약은 취소할 수 없습니다.",
-        )
-
-    # RESERVED 상태가 아니면 취소 불가
+    
     if reservation.status != models.ReservationStatus.RESERVED:
         raise ForbiddenException(
             code=ErrorCode.AUTH_FORBIDDEN,
             message="예약 중(RESERVED) 상태의 예약만 취소할 수 있습니다.",
         )
 
-    # 4. 취소 처리
     reservation.status = models.ReservationStatus.CANCELED
     db.commit()
     db.refresh(reservation)

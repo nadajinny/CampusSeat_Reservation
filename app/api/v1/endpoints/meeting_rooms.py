@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app import schemas
 from app.api.docs import BAD_REQUEST, CONFLICT
 from app.database import get_db
+from app.auth.deps import get_current_student_id
 from app.schemas.common import ApiResponse
 from app.services import meeting_room_service
 
@@ -22,7 +23,8 @@ router = APIRouter(prefix="/reservations/meeting-rooms", tags=["Meeting Room Res
 )
 def create_meeting_room_reservation(
     request: schemas.MeetingRoomReservationCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    student_id: int = Depends(get_current_student_id),
 ):
     """
     회의실 예약 생성
@@ -36,8 +38,6 @@ def create_meeting_room_reservation(
     - 일일 제한: 2시간
     - 주간 제한: 5시간
     """
-    student_id = 202312345
-
     reservation_orm = meeting_room_service.process_reservation(
         db=db,
         request=request,

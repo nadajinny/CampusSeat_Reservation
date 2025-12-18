@@ -46,6 +46,15 @@ class SeatReservationCreate(BaseModel):
     end_time: Time = Field(..., description="종료 시간 (HH:MM)")
     seat_id: Optional[int] = Field(None, ge=1, description="좌석 번호 (랜덤 배정 시 None)")
 
+    @field_validator("date")
+    @classmethod
+    def validate_date_not_past(cls, value: Date) -> Date:
+        """과거 날짜 예약 방지"""
+        today = Date.today()
+        if value < today:
+            raise ValueError("과거 날짜는 예약할 수 없습니다.")
+        return value
+
     @field_validator("seat_id")
     @classmethod
     def validate_seat_id(cls, value: Optional[int]) -> Optional[int]:
@@ -79,6 +88,12 @@ class SeatReservationCreate(BaseModel):
         ).total_seconds() / 60
         if duration_minutes != ReservationLimits.SEAT_SLOT_MINUTES:
             raise ValueError("좌석 예약은 정확히 2시간 단위로만 가능합니다.")
+
+        # 오늘 날짜인 경우 현재 시간 이후만 예약 가능
+        if self.date == Date.today():
+            now = datetime.now().time()
+            if self.start_time <= now:
+                raise ValueError("현재 시간 이후부터 예약할 수 있습니다.")
 
         return self
 

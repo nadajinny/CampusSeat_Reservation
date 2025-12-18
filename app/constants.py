@@ -24,6 +24,7 @@ class ErrorCode(str, Enum):
     AUTH_UNAUTHORIZED = "AUTH_UNAUTHORIZED"
     AUTH_FORBIDDEN = "AUTH_FORBIDDEN"
     SEAT_ALREADY_EXISTS = "SEAT_ALREADY_EXISTS"
+    SEAT_NOT_AVAILABLE = "SEAT_NOT_AVAILABLE"
     AUTH_INVALID_STUDENT_ID = "AUTH_INVALID_STUDENT_ID"
 
 
@@ -41,6 +42,7 @@ ERROR_MESSAGES = {
     ErrorCode.AUTH_UNAUTHORIZED: "로그인이 필요합니다.",
     ErrorCode.AUTH_FORBIDDEN: "접근 권한이 없습니다.",
     ErrorCode.SEAT_ALREADY_EXISTS: "이미 존재하는 좌석입니다.",
+    ErrorCode.SEAT_NOT_AVAILABLE: "해당 좌석은 현재 이용 불가 상태입니다.",
     ErrorCode.AUTH_INVALID_STUDENT_ID: "유효하지 않은 학번입니다.",
 }
 
@@ -62,6 +64,7 @@ class ReservationLimits:
     MEETING_ROOM_DAILY_LIMIT_MINUTES = 120  # 2 hours per day
     MEETING_ROOM_WEEKLY_LIMIT_MINUTES = 300  # 5 hours per week
     MEETING_ROOM_MIN_PARTICIPANTS = 3
+    MEETING_ROOM_MAX_PARTICIPANTS = 6
 
     # Seat limits
     SEAT_SLOT_MINUTES = 120  # 2 hours
@@ -90,3 +93,19 @@ class FacilityConstants:
     MEETING_ROOM_IDS = [1, 2, 3]
     SEAT_MIN_ID = 1
     SEAT_MAX_ID = 70
+
+
+class SeatSlotConstants:
+    """Seat slot time constants - 권장 슬롯 시간대"""
+
+    # 권장 슬롯: 09-11, 11-13, 13-15, 15-17
+    RECOMMENDED_SLOTS = [
+        ("09:00", "11:00"),
+        ("10:00", "12:00"),
+        ("11:00", "13:00"),
+        ("12:00", "14:00"),
+        ("13:00", "15:00"),
+        ("14:00", "16:00"),
+        ("15:00", "17:00"),
+        ("16:00", "18:00")
+    ]
