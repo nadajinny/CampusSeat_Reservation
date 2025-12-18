@@ -96,26 +96,25 @@
 
 ## 🚀 How to Run
 
-1. **Clone Repository**
+1. **Backend API (FastAPI) 실행**
 
    ```bash
-   git clone https://github.com/your-username/seat-room-reservation-system.git
+   python3 -m venv .venv
+   source .venv/bin/activate        # Windows: .venv\Scripts\activate
+   pip install -r requirements.txt
+   uvicorn app.main:app --reload --port 8000
    ```
 
-2. **Open HTML File**
+   FastAPI가 http://127.0.0.1:8000 에서 동작해야 로그인/예약 관리 화면이 API와 연동됩니다.
 
-   ```bash
-   open index.html
-   ```
-
-   또는 파일을 더블 클릭하여 브라우저에서 실행
-
-3. **(Optional) Local Server**
+2. **정적 프런트엔드 미리보기**
 
    ```bash
    python3 -m http.server 5500
-   # http://localhost:5500/index.html
+   # http://127.0.0.1:5500/login.html (또는 dashboard.html)
    ```
+
+   `my-reservations.html`과 `login.html`은 실행 중인 FastAPI 백엔드와 통신하여 데이터를 불러옵니다.
 
 ---
 
@@ -287,26 +286,26 @@ This project is for educational purposes as part of a Software Engineering cours
 
 ## 🚀 How to Run
 
-1. **Clone Repository**
+1. **Backend API (FastAPI) 실행**
 
    ```bash
-   git clone https://github.com/your-username/seat-room-reservation-system.git
+   python3 -m venv .venv
+   source .venv/bin/activate        # Windows: .venv\Scripts\activate
+   pip install -r requirements.txt
+   uvicorn app.main:app --reload --port 8000
    ```
 
-2. **Open Dashboard (or Any Screen)**
+   FastAPI 서버가 http://127.0.0.1:8000 에서 실행 중이어야 로그인/예약 관리 화면이 정상 동작합니다.
 
-   ```bash
-   open dashboard.html
-   ```
-
-   또는 `seat-reservation.html`, `meeting-room-reservation.html` 등 원하는 화면을 더블 클릭하여 브라우저에서 바로 실행
-
-3. **(Optional) Local Server**
+2. **정적 프런트엔드 실행**
 
    ```bash
    python3 -m http.server 5500
-   # http://localhost:5500/dashboard.html
+   # http://127.0.0.1:5500/login.html (또는 dashboard.html)
    ```
+
+   원하는 HTML(`dashboard.html`, `seat-reservation.html` 등)을 여는 것은 동일하며,
+   백엔드 연동이 필요한 페이지(login, my-reservations)는 자동으로 FastAPI API를 호출합니다.
 
 ---
 

@@ -241,6 +241,22 @@ p {
   font-weight: 600;
 }
 
+.status-reserved {
+  color: #2f80ed;
+}
+
+.status-in_use {
+  color: #f2994a;
+}
+
+.status-completed {
+  color: #2d9c5a;
+}
+
+.status-canceled {
+  color: #d63031;
+}
+
 .status-available {
   color: #2d9c5a;
 }

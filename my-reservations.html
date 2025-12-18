@@ -12,18 +12,46 @@
       <a href="dashboard.html">메인으로</a>
       <button type="button" id="logoutBtn">로그아웃</button>
     </nav>
+    <p id="studentSummary" class="notice"></p>
   </header>
 
   <main>
     <section>
       <h2>예약 목록</h2>
-      <p class="notice">현재는 조회만 가능하며, 취소 기능은 추후 제공됩니다.</p>
+      <p class="notice">
+        FastAPI 백엔드(<code>/api/reservations</code>)와 직접 통신하여 내 예약을 조회·취소합니다.
+      </p>
+
+      <form id="filter-form" aria-label="예약 조회 조건">
+        <div class="field-row">
+          <label for="filterFrom">시작 날짜</label>
+          <input id="filterFrom" name="from" type="date" />
+        </div>
+        <div class="field-row">
+          <label for="filterTo">종료 날짜</label>
+          <input id="filterTo" name="to" type="date" />
+        </div>
+        <div class="field-row">
+          <label for="filterType">예약 구분</label>
+          <select id="filterType" name="type">
+            <option value="">전체</option>
+            <option value="meeting_room">회의실</option>
+            <option value="seat">열람실 좌석</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <button type="submit">예약 조회</button>
+          <button type="button" id="resetFilters" class="secondary-button">조건 초기화</button>
+        </div>
+      </form>
+
+      <p id="reservation-status" class="notice hidden" role="status"></p>
 
       <div id="reservation-empty" class="notice hidden">
-        아직 등록된 예약이 없습니다. 예약 가능 시간 조회에서 예약을 진행해 주세요.
+        아직 등록된 예약이 없습니다. 새로운 예약을 생성한 뒤 다시 조회해 주세요.
       </div>
 
-      <table>
+      <table aria-live="polite">
         <thead>
           <tr>
             <th>예약 ID</th>
@@ -31,13 +59,238 @@
             <th>공간</th>
             <th>날짜</th>
             <th>시간</th>
+            <th>상태</th>
+            <th>관리</th>
           </tr>
         </thead>
         <tbody id="reservationList"></tbody>
       </table>
     </section>
   </main>
-  <script src="js/reservation-engine.js"></script>
-  <script src="js/app.js"></script>
+  <script>
+    (function () {
+      const API_BASE_URL = (window.APP_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+      const STATUS_LABELS = {
+        RESERVED: "예약 완료",
+        IN_USE: "사용 중",
+        COMPLETED: "이용 완료",
+        CANCELED: "취소됨",
+      };
+
+      document.addEventListener("DOMContentLoaded", () => {
+        const ui = {
+          studentSummary: document.getElementById("studentSummary"),
+          logoutBtn: document.getElementById("logoutBtn"),
+          filterForm: document.getElementById("filter-form"),
+          filterFrom: document.getElementById("filterFrom"),
+          filterTo: document.getElementById("filterTo"),
+          filterType: document.getElementById("filterType"),
+          resetFilters: document.getElementById("resetFilters"),
+          tableBody: document.getElementById("reservationList"),
+          emptyState: document.getElementById("reservation-empty"),
+          statusEl: document.getElementById("reservation-status"),
+        };
+
+        const studentId = sessionStorage.getItem("studentId");
+        if (!studentId) {
+          alert("로그인이 필요합니다. 로그인 화면으로 이동합니다.");
+          window.location.href = "login.html";
+          return;
+        }
+
+        if (ui.studentSummary) {
+          ui.studentSummary.innerHTML = `로그인한 학번: <strong>${studentId}</strong>`;
+        }
+
+        ui.logoutBtn?.addEventListener("click", handleLogout);
+
+        ui.filterForm?.addEventListener("submit", (event) => {
+          event.preventDefault();
+          loadReservations(ui);
+        });
+
+        ui.resetFilters?.addEventListener("click", () => {
+          ui.filterForm?.reset();
+          loadReservations(ui);
+        });
+
+        ui.tableBody?.addEventListener("click", (event) => {
+          const button = event.target.closest(".cancel-btn");
+          if (!button) return;
+          const reservationId = button.dataset.reservationId;
+          if (!reservationId) return;
+          cancelReservation(ui, reservationId);
+        });
+
+        loadReservations(ui);
+      });
+
+      function handleLogout() {
+        sessionStorage.removeItem("studentId");
+        sessionStorage.removeItem("accessToken");
+        window.location.href = "login.html";
+      }
+
+      async function loadReservations(ui) {
+        if (!ui || !ui.tableBody) return;
+
+        showStatus(ui, "예약 목록을 불러오는 중입니다...", false);
+        ui.tableBody.innerHTML = "";
+        toggleEmptyState(ui, false);
+
+        try {
+          const query = buildQuery(ui);
+          const path = query ? `/api/reservations/me?${query}` : "/api/reservations/me";
+          const data = await requestJson(path);
+          const items = data?.payload?.items || [];
+          renderReservations(ui, items);
+          if (items.length > 0) {
+            showStatus(ui, `총 ${items.length}건의 예약을 불러왔습니다.`, false);
+          } else {
+            showStatus(ui, "표시할 예약이 없습니다.", false);
+          }
+        } catch (error) {
+          console.error(error);
+          renderReservations(ui, []);
+          showStatus(ui, error.message || "예약 목록을 불러오지 못했습니다.", true);
+        }
+      }
+
+      async function cancelReservation(ui, reservationId) {
+        if (!ui || !reservationId) return;
+        if (!confirm(`예약 #${reservationId}을(를) 취소하시겠습니까?`)) {
+          return;
+        }
+
+        showStatus(ui, "예약을 취소하는 중입니다...", false);
+        try {
+          await requestJson(`/api/reservations/me/${reservationId}`, { method: "DELETE" });
+          showStatus(ui, `예약 #${reservationId}을(를) 취소했습니다.`, false);
+          loadReservations(ui);
+        } catch (error) {
+          console.error(error);
+          showStatus(ui, error.message || "예약을 취소하지 못했습니다.", true);
+        }
+      }
+
+      function renderReservations(ui, items) {
+        if (!ui || !ui.tableBody) return;
+        ui.tableBody.innerHTML = "";
+
+        if (!items?.length) {
+          toggleEmptyState(ui, true);
+          return;
+        }
+
+        toggleEmptyState(ui, false);
+
+        const fragment = document.createDocumentFragment();
+        items.forEach((item) => {
+          const tr = document.createElement("tr");
+          const statusClass = `status-${String(item.status || "").toLowerCase()}`;
+          tr.innerHTML = `
+            <td>${item.reservation_id}</td>
+            <td>${formatType(item.type)}</td>
+            <td>${formatFacility(item)}</td>
+            <td>${item.date}</td>
+            <td>${item.start_time} ~ ${item.end_time}</td>
+            <td><span class="status-pill ${statusClass}">${formatStatus(item.status)}</span></td>
+            <td>${renderActionCell(item)}</td>
+          `;
+          fragment.appendChild(tr);
+        });
+
+        ui.tableBody.appendChild(fragment);
+      }
+
+      function renderActionCell(item) {
+        if (item.status !== "RESERVED") {
+          return `<span class="notice">-</span>`;
+        }
+        return `<button type="button" class="cancel-btn" data-reservation-id="${item.reservation_id}">예약 취소</button>`;
+      }
+
+      function formatType(type) {
+        return type === "meeting_room" ? "회의실" : "열람실 좌석";
+      }
+
+      function formatFacility(item) {
+        if (item.type === "meeting_room") {
+          return item.room_id ? `회의실 ${item.room_id}` : "회의실";
+        }
+        return item.seat_id ? `좌석 ${item.seat_id}` : "좌석";
+      }
+
+      function formatStatus(status) {
+        return STATUS_LABELS[status] || status || "-";
+      }
+
+      function showStatus(ui, message, isError) {
+        if (!ui?.statusEl) return;
+        ui.statusEl.textContent = message || "";
+        ui.statusEl.classList.toggle("hidden", !message);
+        ui.statusEl.classList.toggle("error", Boolean(isError));
+        ui.statusEl.classList.toggle("success", Boolean(message && !isError));
+      }
+
+      function toggleEmptyState(ui, show) {
+        ui?.emptyState?.classList.toggle("hidden", !show);
+      }
+
+      function buildQuery(ui) {
+        const params = new URLSearchParams();
+        const from = ui.filterFrom?.value;
+        const to = ui.filterTo?.value;
+        const type = ui.filterType?.value;
+
+        if (from) params.set("from", from);
+        if (to) params.set("to", to);
+        if (type) params.set("type", type);
+
+        return params.toString();
+      }
+
+      async function requestJson(path, options = {}) {
+        const url = `${API_BASE_URL}${path}`;
+        const fetchOptions = { method: "GET", ...options };
+        const headers = new Headers(fetchOptions.headers || {});
+        headers.set("Accept", "application/json");
+
+        if (fetchOptions.body && !(fetchOptions.body instanceof FormData) && !headers.has("Content-Type")) {
+          headers.set("Content-Type", "application/json");
+        }
+
+        const authHeaders = buildAuthHeaders();
+        Object.entries(authHeaders).forEach(([key, value]) => {
+          if (!headers.has(key)) {
+            headers.set(key, value);
+          }
+        });
+
+        fetchOptions.headers = headers;
+
+        const response = await fetch(url, fetchOptions);
+        const contentType = response.headers.get("content-type") || "";
+        const isJson = contentType.includes("application/json");
+        const data = isJson ? await response.json() : await response.text();
+
+        const failed = !response.ok || (isJson && data?.is_success === false);
+        if (failed) {
+          const message = isJson
+            ? data?.payload?.message || data?.message || "요청 처리 중 오류가 발생했습니다."
+            : String(data || "요청 처리 중 오류가 발생했습니다.");
+          throw new Error(message);
+        }
+
+        return data;
+      }
+
+      function buildAuthHeaders() {
+        const token = sessionStorage.getItem("accessToken");
+        if (!token) return {};
+        return { Authorization: `Bearer ${token}` };
+      }
+    })();
+  </script>
 </body>
 </html>

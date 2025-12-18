@@ -15,5 +15,6 @@ __pycache__/
 stage.md
 reserve.md
 library_reservation.db
+.venv/
 test_cases.md
 validation.md

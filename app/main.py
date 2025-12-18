@@ -4,6 +4,7 @@ main.py - Application Entry Point
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.scheduler import scheduler, update_reservation_status
 from app.database import engine, Base
@@ -42,15 +43,29 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# 3. 예외 핸들러 등록 (순서 중요)
+# 3. CORS 설정 - 정적 HTML 페이지(예: http://127.0.0.1:5500)와 연동
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+        "http://127.0.0.1",
+        "http://localhost",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 4. 예외 핸들러 등록 (순서 중요)
 app.add_exception_handler(BusinessException, business_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, internal_exception_handler)
 
-# 4. 라우터 등록
+# 5. 라우터 등록
 app.include_router(api_router)
 
-# 5. 기본 엔드포인트
+# 6. 기본 엔드포인트
 @app.get("/")
 def read_root():
     return {
