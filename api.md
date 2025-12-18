@@ -383,8 +383,30 @@
 // 응답: 200 OK
 {
   "is_success": true,
+  "code": null,
   "payload": {
     "reservation_id": 1,
+    "type": "meeting_room",
+    "room_id": 1,
+    "seat_id": null,
+    "status": "CANCELED"
+  }
+}
+
+```
+
+또는 좌석 예약 취소 시:
+
+```json
+// 응답: 200 OK
+{
+  "is_success": true,
+  "code": null,
+  "payload": {
+    "reservation_id": 2,
+    "type": "seat",
+    "room_id": null,
+    "seat_id": 12,
     "status": "CANCELED"
   }
 }

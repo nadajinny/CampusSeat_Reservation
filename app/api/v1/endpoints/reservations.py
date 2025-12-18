@@ -134,9 +134,22 @@ def cancel_reservation(
     # 상태 값 추출
     status_value = reservation.status.value if hasattr(reservation.status, "value") else reservation.status
 
+    # 타입 및 시설 정보 결정
+    if reservation.meeting_room_id is not None:
+        reservation_type = ReservationType.MEETING_ROOM
+        room_id = reservation.meeting_room_id
+        seat_id = None
+    else:
+        reservation_type = ReservationType.SEAT
+        room_id = None
+        seat_id = reservation.seat_id
+
     # 응답 생성
     payload = schemas.CancelReservationResponse(
         reservation_id=reservation.reservation_id,
+        type=reservation_type,
+        room_id=room_id,
+        seat_id=seat_id,
         status=status_value,
     )
 

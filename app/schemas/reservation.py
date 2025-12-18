@@ -71,4 +71,7 @@ class CancelReservationResponse(BaseModel):
     """예약 취소 응답"""
 
     reservation_id: int = Field(..., description="예약 ID")
+    type: str = Field(..., description="예약 유형 (meeting_room | seat)")
+    room_id: Optional[int] = Field(None, description="회의실 ID (type=meeting_room일 때)")
+    seat_id: Optional[int] = Field(None, description="좌석 ID (type=seat일 때)")
     status: str = Field(..., description="변경된 상태 (CANCELED)")
