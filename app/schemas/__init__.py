@@ -54,8 +54,6 @@ __all__ = [
     "LoginRequest",
     "TokenPayload",
     "UserResponse",
-    "LoginSuccessResponse",
-    "LoginErrorResponse",
     "SeatCreate",
     "SeatResponse",
     "SeatReservationCreate",

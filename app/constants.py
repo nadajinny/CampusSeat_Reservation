@@ -26,6 +26,7 @@ class ErrorCode(str, Enum):
     SEAT_ALREADY_EXISTS = "SEAT_ALREADY_EXISTS"
     SEAT_NOT_AVAILABLE = "SEAT_NOT_AVAILABLE"
     AUTH_INVALID_STUDENT_ID = "AUTH_INVALID_STUDENT_ID"
+    MEETING_ROOM_NOT_AVAILABLE = "MEETING_ROOM_NOT_AVAILABLE"
 
 
 ERROR_MESSAGES = {
@@ -44,6 +45,7 @@ ERROR_MESSAGES = {
     ErrorCode.SEAT_ALREADY_EXISTS: "이미 존재하는 좌석입니다.",
     ErrorCode.SEAT_NOT_AVAILABLE: "해당 좌석은 현재 이용 불가 상태입니다.",
     ErrorCode.AUTH_INVALID_STUDENT_ID: "유효하지 않은 학번입니다.",
+    ErrorCode.MEETING_ROOM_NOT_AVAILABLE: "해당 회의실은 현재 이용 불가 상태입니다.",
 }
 
 
