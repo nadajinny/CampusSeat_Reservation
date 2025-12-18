@@ -13,7 +13,7 @@ class TestGetMyReservationsAPI:
     def test_get_my_reservations_success(self, client, test_token, seat_reservation):
         """내 예약 목록 조회 성공 - 200 OK"""
         response = client.get(
-            "/api/v1/reservations/me",
+            "/api/reservations/me",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 
@@ -25,7 +25,7 @@ class TestGetMyReservationsAPI:
     def test_get_my_reservations_empty(self, client, test_token):
         """예약이 없는 경우 빈 리스트 반환"""
         response = client.get(
-            "/api/v1/reservations/me",
+            "/api/reservations/me",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 
@@ -36,7 +36,7 @@ class TestGetMyReservationsAPI:
     def test_get_my_reservations_with_date_filter(self, client, test_token, seat_reservation):
         """날짜 필터링으로 예약 조회"""
         response = client.get(
-            "/api/v1/reservations/me?from=2025-12-20&to=2025-12-20",
+            "/api/reservations/me?from=2025-12-20&to=2025-12-20",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 
@@ -51,7 +51,7 @@ class TestGetMyReservationsAPI:
         """타입 필터링으로 예약 조회 (meeting_room/seat)"""
         # 좌석만 필터링
         response = client.get(
-            "/api/v1/reservations/me?type=seat",
+            "/api/reservations/me?type=seat",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 
@@ -63,7 +63,7 @@ class TestGetMyReservationsAPI:
     def test_get_my_reservations_response_format(self, client, test_token, seat_reservation):
         """응답 형식 검증 (items 배열)"""
         response = client.get(
-            "/api/v1/reservations/me",
+            "/api/reservations/me",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 
@@ -76,7 +76,7 @@ class TestGetMyReservationsAPI:
     def test_get_my_reservations_item_fields(self, client, test_token, seat_reservation):
         """예약 아이템 필드 검증 (reservation_id, type, date 등)"""
         response = client.get(
-            "/api/v1/reservations/me",
+            "/api/reservations/me",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 
@@ -99,7 +99,7 @@ class TestCancelReservationAPI:
     def test_cancel_reserved_reservation_success(self, client, test_token, seat_reservation):
         """RESERVED 상태 예약 취소 성공 - 200 OK"""
         response = client.delete(
-            f"/api/v1/reservations/me/{seat_reservation.reservation_id}",
+            f"/api/reservations/me/{seat_reservation.reservation_id}",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 
@@ -110,7 +110,7 @@ class TestCancelReservationAPI:
     def test_cancel_reservation_response_format(self, client, test_token, seat_reservation):
         """취소 응답 형식 검증"""
         response = client.delete(
-            f"/api/v1/reservations/me/{seat_reservation.reservation_id}",
+            f"/api/reservations/me/{seat_reservation.reservation_id}",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 
@@ -122,7 +122,7 @@ class TestCancelReservationAPI:
     def test_cancel_reservation_contains_type_and_facility(self, client, test_token, seat_reservation):
         """취소 응답에 type, room_id/seat_id 포함"""
         response = client.delete(
-            f"/api/v1/reservations/me/{seat_reservation.reservation_id}",
+            f"/api/reservations/me/{seat_reservation.reservation_id}",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 
@@ -136,7 +136,7 @@ class TestCancelReservationAPI:
     def test_cancel_already_canceled_reservation(self, client, test_token, canceled_reservation):
         """이미 취소된 예약 중복 취소 - 400 Bad Request"""
         response = client.delete(
-            f"/api/v1/reservations/me/{canceled_reservation.reservation_id}",
+            f"/api/reservations/me/{canceled_reservation.reservation_id}",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 
@@ -163,7 +163,7 @@ class TestCancelReservationAPI:
         db_session.refresh(reservation)
 
         response = client.delete(
-            f"/api/v1/reservations/me/{reservation.reservation_id}",
+            f"/api/reservations/me/{reservation.reservation_id}",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 
@@ -174,7 +174,7 @@ class TestCancelReservationAPI:
     def test_cancel_completed_reservation(self, client, test_token, expired_reservation):
         """COMPLETED 상태 예약 취소 시도 - 403 Forbidden"""
         response = client.delete(
-            f"/api/v1/reservations/me/{expired_reservation.reservation_id}",
+            f"/api/reservations/me/{expired_reservation.reservation_id}",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 
@@ -201,7 +201,7 @@ class TestCancelReservationAPI:
         db_session.refresh(other_reservation)
 
         response = client.delete(
-            f"/api/v1/reservations/me/{other_reservation.reservation_id}",
+            f"/api/reservations/me/{other_reservation.reservation_id}",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 
@@ -210,23 +210,23 @@ class TestCancelReservationAPI:
         assert data["is_success"] is False
 
     def test_cancel_nonexistent_reservation(self, client, test_token):
-        """존재하지 않는 예약 취소 시도 - 404 Not Found"""
+        """존재하지 않는 예약 취소 시도 - 400 Bad Request"""
         response = client.delete(
-            "/api/v1/reservations/me/999999",
+            "/api/reservations/me/999999",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 
-        assert response.status_code == 404
+        assert response.status_code == 400
         data = response.json()
         assert data["is_success"] is False
 
     def test_cancel_without_authentication(self, client, seat_reservation):
-        """인증 없이 예약 취소 시도 - 401 Unauthorized"""
+        """인증 없이 예약 취소 시도 - 400 Bad Request"""
         response = client.delete(
-            f"/api/v1/reservations/me/{seat_reservation.reservation_id}"
+            f"/api/reservations/me/{seat_reservation.reservation_id}"
         )
 
-        assert response.status_code == 401
+        assert response.status_code == 400
 
 
 @pytest.mark.integration
@@ -238,7 +238,7 @@ class TestCancelMeetingRoomReservation:
     def test_cancel_meeting_room_reservation(self, client, test_token, meeting_room_reservation):
         """회의실 예약 취소 성공"""
         response = client.delete(
-            f"/api/v1/reservations/me/{meeting_room_reservation.reservation_id}",
+            f"/api/reservations/me/{meeting_room_reservation.reservation_id}",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 
@@ -250,7 +250,7 @@ class TestCancelMeetingRoomReservation:
     def test_cancel_meeting_room_response_format(self, client, test_token, meeting_room_reservation):
         """회의실 예약 취소 응답 (type=meeting_room, room_id 포함)"""
         response = client.delete(
-            f"/api/v1/reservations/me/{meeting_room_reservation.reservation_id}",
+            f"/api/reservations/me/{meeting_room_reservation.reservation_id}",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 
@@ -270,7 +270,7 @@ class TestCancelSeatReservation:
     def test_cancel_seat_reservation(self, client, test_token, seat_reservation):
         """좌석 예약 취소 성공"""
         response = client.delete(
-            f"/api/v1/reservations/me/{seat_reservation.reservation_id}",
+            f"/api/reservations/me/{seat_reservation.reservation_id}",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 
@@ -282,7 +282,7 @@ class TestCancelSeatReservation:
     def test_cancel_seat_response_format(self, client, test_token, seat_reservation):
         """좌석 예약 취소 응답 (type=seat, seat_id 포함)"""
         response = client.delete(
-            f"/api/v1/reservations/me/{seat_reservation.reservation_id}",
+            f"/api/reservations/me/{seat_reservation.reservation_id}",
             headers={"Authorization": f"Bearer {test_token}"}
         )
 

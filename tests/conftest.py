@@ -112,6 +112,10 @@ def multiple_users(db_session):
 @pytest.fixture
 def test_seat(db_session):
     """테스트용 좌석 생성"""
+    # 기존 좌석이 있으면 반환, 없으면 생성
+    existing = db_session.query(Seat).filter(Seat.seat_id == 1).first()
+    if existing:
+        return existing
     seat = Seat(
         seat_id=1,
         is_available=True
@@ -164,6 +168,10 @@ def reserved_seats(db_session):
 @pytest.fixture
 def test_meeting_room(db_session):
     """테스트용 회의실 생성"""
+    # 기존 회의실이 있으면 반환, 없으면 생성
+    existing = db_session.query(MeetingRoom).filter(MeetingRoom.room_id == 1).first()
+    if existing:
+        return existing
     meeting_room = MeetingRoom(
         room_id=1,
         min_capacity=3,
