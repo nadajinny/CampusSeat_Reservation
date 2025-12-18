@@ -7,7 +7,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>로그인 | 예약 시스템</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
   <header>
@@ -16,11 +16,11 @@
   </header>
 
   <main>
-    <!-- 실제 인증은 아직 없으므로, "로그인"을 누르면 dashboard.html로 이동하도록 구성 -->
+    <!-- FastAPI 백엔드와 직접 통신하여 토큰을 발급받음 -->
     <section aria-label="로그인 폼">
       <h2>로그인</h2>
 
-      <form id="login-form" action="dashboard.html" method="get">
+      <form id="login-form" action="#" method="post" novalidate>
         <fieldset>
           <legend>계정 정보 입력</legend>
 
@@ -55,9 +55,10 @@
 
           <button type="submit">로그인</button>
 
+          <p id="login-status" class="notice hidden" role="status"></p>
+
           <p>
-            ※ 현재는 화면 흐름 확인용 HTML입니다. <br />
-            실제 인증/세션 처리는 백엔드 또는 JS 연동 단계에서 추가하세요.
+            ※ FastAPI 서버(<code>app/main.py</code>)가 실행 중이어야 합니다.
           </p>
         </fieldset>
       </form>
@@ -67,5 +68,95 @@
   <footer>
     <p>© Reservation System</p>
   </footer>
+  <script>
+    (function () {
+      const API_BASE_URL = (window.APP_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+      const INVALID_IDS = new Set(["202099999", "202288888"]);
+
+      document.addEventListener("DOMContentLoaded", () => {
+        const form = document.getElementById("login-form");
+        const statusEl = document.getElementById("login-status");
+
+        if (!form) return;
+
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+
+          const studentIdInput = document.getElementById("studentId");
+          const passwordInput = document.getElementById("password");
+          const submitButton = form.querySelector('button[type="submit"]');
+
+          const studentId = (studentIdInput?.value || "").trim();
+          const password = (passwordInput?.value || "").trim();
+
+          if (!/^\d{9}$/.test(studentId)) {
+            showStatus("학번은 9자리 숫자여야 합니다.", true);
+            studentIdInput?.focus();
+            return;
+          }
+
+          if (INVALID_IDS.has(studentId)) {
+            showStatus("유효하지 않은 학번입니다.", true);
+            studentIdInput?.focus();
+            return;
+          }
+
+          if (!password) {
+            showStatus("비밀번호를 입력해 주세요.", true);
+            passwordInput?.focus();
+            return;
+          }
+
+          toggleSubmitting(true, submitButton);
+          showStatus("로그인 중입니다...", false);
+
+          try {
+            const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ student_id: studentId }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || data?.is_success === false) {
+              const message =
+                data?.payload?.message || data?.message || "로그인에 실패했습니다.";
+              throw new Error(message);
+            }
+
+            const payload = data.payload || {};
+            sessionStorage.setItem("studentId", payload.student_id || studentId);
+
+            if (payload.access_token) {
+              sessionStorage.setItem("accessToken", payload.access_token);
+            }
+
+            showStatus("로그인 성공! 대시보드로 이동합니다.", false);
+            window.location.href = "dashboard.html";
+          } catch (error) {
+            console.error(error);
+            showStatus(error.message || "로그인 중 오류가 발생했습니다.", true);
+          } finally {
+            toggleSubmitting(false, submitButton);
+          }
+        });
+
+        function toggleSubmitting(isSubmitting, button) {
+          if (!button) return;
+          button.disabled = isSubmitting;
+          button.textContent = isSubmitting ? "로그인 중..." : "로그인";
+        }
+
+        function showStatus(message, isError) {
+          if (!statusEl) return;
+          statusEl.textContent = message || "";
+          statusEl.classList.toggle("hidden", !message);
+          statusEl.classList.toggle("error", Boolean(isError));
+          statusEl.classList.toggle("success", Boolean(message && !isError));
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
