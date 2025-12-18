@@ -5,7 +5,7 @@ services/seat_service.py - Seat metadata and reservation helpers.
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, text
 from sqlalchemy.orm import Session
 
 from app import models
@@ -76,113 +76,112 @@ def reserve_seat(
     - SELECT ... FOR UPDATE를 사용하여 조회 시점에 Row Lock을 획득합니다.
     - 트랜잭션이 커밋(create_seat_reservation 내부)될 때까지 락이 유지됩니다.
     """
+    try:
+        # [핵심] 로직 시작하자마자 '쓰기 잠금' 획득
+        # 이후의 모든 조회(SELECT)와 생성(INSERT)은 이 락 안에서 보호됨
+        db.execute(text("BEGIN IMMEDIATE"))
 
-    # 시간 변환 (공통)
-    start_dt_kst = datetime.combine(request.date, request.start_time, tzinfo=KST)
-    end_dt_kst = datetime.combine(request.date, request.end_time, tzinfo=KST)
-    start_dt_utc = start_dt_kst.astimezone(timezone.utc)
-    end_dt_utc = end_dt_kst.astimezone(timezone.utc)
-    duration_minutes = (end_dt_utc - start_dt_utc).total_seconds() / 60
+        # 시간 변환 (공통)
+        start_dt_kst = datetime.combine(request.date, request.start_time, tzinfo=KST)
+        end_dt_kst = datetime.combine(request.date, request.end_time, tzinfo=KST)
+        start_dt_utc = start_dt_kst.astimezone(timezone.utc)
+        end_dt_utc = end_dt_kst.astimezone(timezone.utc)
+        duration_minutes = (end_dt_utc - start_dt_utc).total_seconds() / 60
 
-    selected_seat_id = None
-
-    # -------------------------------------------------------
-    # 1. 좌석 결정 및 Lock 획득 (Critical Section)
-    # -------------------------------------------------------
-    if request.seat_id is not None:
-        # [직접 선택 모드]
-        # 해당 좌석을 DB에서 조회하면서 즉시 잠금(Lock)을 겁니다.
-        # 다른 트랜잭션이 이 좌석을 수정하거나 예약하려 하면 여기서 대기하게 됩니다.
-        seat = (
-            db.query(models.Seat)
-            .filter(models.Seat.seat_id == request.seat_id)
-            .with_for_update()  # 비관적 락 (SELECT FOR UPDATE)
-            .first()
-        )
-
-        if seat is None:
-            raise BusinessException(
-                code=ErrorCode.NOT_FOUND,
-                message=f"좌석 ID {request.seat_id}번을 찾을 수 없습니다.",
+        selected_seat_id = None
+        # -------------------------------------------------------
+        # 1. 좌석 결정 및 Lock 획득 (Critical Section)
+        # -------------------------------------------------------
+        if request.seat_id is not None:
+            seat = (
+                db.query(models.Seat)
+                .filter(models.Seat.seat_id == request.seat_id)
+                .first()
             )
-        if not seat.is_available:
-            raise BusinessException(
-                code=ErrorCode.SEAT_NOT_AVAILABLE,
-                message=f"좌석 ID {request.seat_id}번은 현재 이용 불가 상태입니다.",
+
+            if not seat.is_available:
+                raise BusinessException(
+                    code=ErrorCode.SEAT_NOT_AVAILABLE,
+                    message=f"좌석 ID {request.seat_id}번은 현재 이용 불가 상태입니다.",
+                )
+            
+            selected_seat_id = seat.seat_id
+
+            # Lock을 획득한 상태에서 시간 충돌 여부를 확실하게 검증합니다.
+            _ensure_no_seat_conflict(db, selected_seat_id, start_dt_utc, end_dt_utc)
+
+        else:
+            # [랜덤 배정 모드]
+            # 가용 좌석 중 하나를 찾아 가져옵니다.
+            selected_seat_id = _find_and_lock_random_available_seat(
+                db, start_dt_utc, end_dt_utc
             )
-        
-        selected_seat_id = seat.seat_id
+            
+            if selected_seat_id is None:
+                raise ConflictException(
+                    code=ErrorCode.RESERVATION_CONFLICT,
+                    message="해당 시간대에 예약 가능한 좌석이 없습니다.",
+                )
 
-        # Lock을 획득한 상태에서 시간 충돌 여부를 확실하게 검증합니다.
-        _ensure_no_seat_conflict(db, selected_seat_id, start_dt_utc, end_dt_utc)
-
-    else:
-        # [랜덤 배정 모드]
-        # 가용 좌석 중 하나를 찾아 Lock을 걸고 가져옵니다.
-        selected_seat_id = _find_and_lock_random_available_seat(
-            db, start_dt_utc, end_dt_utc
-        )
+        # -------------------------------------------------------
+        # 2. 비즈니스 로직 검증 (사용자 중복, 한도 등)
+        # -------------------------------------------------------
         
-        if selected_seat_id is None:
+        # 본인의 다른 좌석 예약과 시간 충돌 확인
+        if reservation_service.check_overlap_with_other_facility(
+            db,
+            student_id,
+            start_dt_utc,
+            end_dt_utc,
+            include_seats=True,
+            include_meeting_rooms=False,
+        ):
             raise ConflictException(
-                code=ErrorCode.RESERVATION_CONFLICT,
-                message="해당 시간대에 예약 가능한 좌석이 없습니다.",
+                code=ErrorCode.OVERLAP_WITH_OTHER_FACILITY,
+                message="동일 시간대에 이미 좌석 예약이 존재합니다.",
             )
 
-    # -------------------------------------------------------
-    # 2. 비즈니스 로직 검증 (사용자 중복, 한도 등)
-    # -------------------------------------------------------
-    
-    # 본인의 다른 좌석 예약과 시간 충돌 확인
-    if reservation_service.check_overlap_with_other_facility(
-        db,
-        student_id,
-        start_dt_utc,
-        end_dt_utc,
-        include_seats=True,
-        include_meeting_rooms=False,
-    ):
-        raise ConflictException(
-            code=ErrorCode.OVERLAP_WITH_OTHER_FACILITY,
-            message="동일 시간대에 이미 좌석 예약이 존재합니다.",
+        # 회의실 예약과 시간 충돌 확인
+        if reservation_service.check_overlap_with_other_facility(
+            db,
+            student_id,
+            start_dt_utc,
+            end_dt_utc,
+            include_seats=False,
+            include_meeting_rooms=True,
+        ):
+            raise ConflictException(
+                code=ErrorCode.OVERLAP_WITH_OTHER_FACILITY,
+                message="동일 시간대에 이미 회의실 예약이 존재합니다.",
+            )
+
+        # 일일 이용 한도 확인
+        used_minutes = _get_daily_seat_usage_minutes(db, student_id, start_dt_kst)
+        limit_minutes = ReservationLimits.SEAT_DAILY_LIMIT_MINUTES
+        if used_minutes + duration_minutes > limit_minutes:
+            raise LimitExceededException(
+                code=ErrorCode.DAILY_LIMIT_EXCEEDED,
+                message=f"일일 좌석 이용 한도({limit_minutes}분)를 초과했습니다. (현재 {used_minutes}분 이용)",
+            )
+
+        # 사용자 정보 확인 및 생성
+        user_service.get_or_create_user(db, student_id)
+        
+        reservation = reservation_service.create_seat_reservation(
+            db=db,
+            student_id=student_id,
+            seat_id=selected_seat_id,
+            start_time=start_dt_utc,
+            end_time=end_dt_utc,
         )
 
-    # 회의실 예약과 시간 충돌 확인
-    if reservation_service.check_overlap_with_other_facility(
-        db,
-        student_id,
-        start_dt_utc,
-        end_dt_utc,
-        include_seats=False,
-        include_meeting_rooms=True,
-    ):
-        raise ConflictException(
-            code=ErrorCode.OVERLAP_WITH_OTHER_FACILITY,
-            message="동일 시간대에 이미 회의실 예약이 존재합니다.",
-        )
-
-    # 일일 이용 한도 확인
-    used_minutes = _get_daily_seat_usage_minutes(db, student_id, start_dt_kst)
-    limit_minutes = ReservationLimits.SEAT_DAILY_LIMIT_MINUTES
-    if used_minutes + duration_minutes > limit_minutes:
-        raise LimitExceededException(
-            code=ErrorCode.DAILY_LIMIT_EXCEEDED,
-            message=f"일일 좌석 이용 한도({limit_minutes}분)를 초과했습니다. (현재 {used_minutes}분 이용)",
-        )
-
-    # 사용자 정보 확인 및 생성
-    user_service.get_or_create_user(db, student_id)
-
-    # -------------------------------------------------------
-    # 3. 예약 생성 (여기서 Commit 되면서 Lock 해제됨)
-    # -------------------------------------------------------
-    return reservation_service.create_seat_reservation(
-        db=db,
-        student_id=student_id,
-        seat_id=selected_seat_id,
-        start_time=start_dt_utc,
-        end_time=end_dt_utc,
-    )
+        # -------------------------------------------------------
+        # 3. 예약 생성 (여기서 Commit 되면서 Lock 해제됨)
+        # -------------------------------------------------------
+        return reservation
+    except Exception as e:
+        db.rollback()
+        raise e
 
 
 def _ensure_no_seat_conflict(
@@ -271,7 +270,6 @@ def _find_and_lock_random_available_seat(
         .filter(models.Seat.seat_id.notin_(occupied_subquery))
         .order_by(func.random())  # DB 랜덤 정렬
         .limit(1)
-        .with_for_update()        # ★ 핵심: 조회된 행을 잠금
     )
     
     result = stmt.first()
