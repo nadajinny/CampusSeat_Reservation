@@ -20,6 +20,19 @@ from app.services import reservation_service, user_service
 
 KST = timezone(timedelta(hours=9))
 
+# 충돌 검사용: 해당 좌석이 현재 점유 중인지 확인
+CONFLICT_CHECK_STATUSES = [
+    models.ReservationStatus.RESERVED,
+    models.ReservationStatus.IN_USE,
+]
+
+# 한도 계산용: 당일 총 사용량 계산 (완료된 것도 포함)
+USAGE_COUNT_STATUSES = [
+    models.ReservationStatus.RESERVED,
+    models.ReservationStatus.IN_USE,
+    models.ReservationStatus.COMPLETED,
+]
+
 
 def get_seat(db: Session, seat_id: int) -> Optional[models.Seat]:
     """좌석 단건 조회"""
@@ -73,12 +86,17 @@ def reserve_seat(
 
     # 1. 좌석 결정 (직접 선택 vs 랜덤 배정)
     if request.seat_id is not None:
-        # 직접 선택 모드: 좌석 존재 확인
+        # 직접 선택 모드: 좌석 존재 및 이용 가능 여부 확인
         seat = get_seat(db, request.seat_id)
         if seat is None:
             raise BusinessException(
                 code=ErrorCode.NOT_FOUND,
                 message=f"좌석 ID {request.seat_id}번을 찾을 수 없습니다.",
+            )
+        if not seat.is_available:
+            raise BusinessException(
+                code=ErrorCode.SEAT_NOT_AVAILABLE,
+                message=f"좌석 ID {request.seat_id}번은 현재 이용 불가 상태입니다.",
             )
         selected_seat_id = request.seat_id
     else:
@@ -90,9 +108,24 @@ def reserve_seat(
                 message="해당 시간대에 예약 가능한 좌석이 없습니다.",
             )
 
-    # 2. 해당 좌석 중복 확인
+    # 2. 해당 좌석 시간 중복 확인
     _ensure_no_seat_conflict(db, selected_seat_id, start_dt_utc, end_dt_utc)
 
+    # 3. 본인의 다른 좌석 예약과 시간 충돌 확인
+    if reservation_service.check_overlap_with_other_facility(
+        db,
+        student_id,
+        start_dt_utc,
+        end_dt_utc,
+        include_seats=True,
+        include_meeting_rooms=False,
+    ):
+        raise ConflictException(
+            code=ErrorCode.OVERLAP_WITH_OTHER_FACILITY,
+            message="동일 시간대에 이미 좌석 예약이 존재합니다.",
+        )
+
+    # 4. 회의실 예약과 시간 충돌 확인
     if reservation_service.check_overlap_with_other_facility(
         db,
         student_id,
@@ -136,7 +169,7 @@ def _ensure_no_seat_conflict(
         db.query(models.Reservation)
         .filter(
             models.Reservation.seat_id == seat_id,
-            models.Reservation.status == models.ReservationStatus.RESERVED,
+            models.Reservation.status.in_(CONFLICT_CHECK_STATUSES),
             models.Reservation.start_time < end_time,
             models.Reservation.end_time > start_time,
         )
@@ -167,7 +200,7 @@ def _get_daily_seat_usage_minutes(
         .filter(
             models.Reservation.student_id == student_id,
             models.Reservation.seat_id.isnot(None),
-            models.Reservation.status == models.ReservationStatus.RESERVED,
+            models.Reservation.status.in_(USAGE_COUNT_STATUSES),
             models.Reservation.start_time >= start_of_day_utc,
             models.Reservation.start_time <= end_of_day_utc,
         )
@@ -198,29 +231,31 @@ def _find_random_available_seat(
     Returns:
         선택된 seat_id 또는 None (가용 좌석이 없는 경우)
     """
-    from app.constants import FacilityConstants
+    # 1. DB에서 is_available=True인 좌석 목록 조회
+    available_seats = (
+        db.query(models.Seat.seat_id)
+        .filter(models.Seat.is_available == True)
+        .all()
+    )
+    all_seat_ids = [row[0] for row in available_seats]
 
-    # 1. 전체 좌석 ID 목록 (1~70)
-    all_seat_ids = list(range(
-        FacilityConstants.SEAT_MIN_ID,
-        FacilityConstants.SEAT_MAX_ID + 1
-    ))
+    if not all_seat_ids:
+        return None
 
     # 2. 해당 시간대에 예약된 좌석 조회
     occupied_seats = (
         db.query(models.Reservation.seat_id)
         .filter(
             models.Reservation.seat_id.isnot(None),
-            models.Reservation.status == models.ReservationStatus.RESERVED,
+            models.Reservation.status.in_(CONFLICT_CHECK_STATUSES),
             models.Reservation.start_time < end_time,
             models.Reservation.end_time > start_time,
         )
         .all()
     )
-
     occupied_seat_ids = {row[0] for row in occupied_seats if row[0] is not None}
 
-    # 3. 가용 좌석 = 전체 - 예약됨
+    # 3. 가용 좌석 = 전체(is_available=True) - 예약됨
     available_seat_ids = [sid for sid in all_seat_ids if sid not in occupied_seat_ids]
 
     # 4. 랜덤 선택

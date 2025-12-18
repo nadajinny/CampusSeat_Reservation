@@ -24,6 +24,7 @@ class ErrorCode(str, Enum):
     AUTH_UNAUTHORIZED = "AUTH_UNAUTHORIZED"
     AUTH_FORBIDDEN = "AUTH_FORBIDDEN"
     SEAT_ALREADY_EXISTS = "SEAT_ALREADY_EXISTS"
+    SEAT_NOT_AVAILABLE = "SEAT_NOT_AVAILABLE"
     AUTH_INVALID_STUDENT_ID = "AUTH_INVALID_STUDENT_ID"
 
 
@@ -41,6 +42,7 @@ ERROR_MESSAGES = {
     ErrorCode.AUTH_UNAUTHORIZED: "로그인이 필요합니다.",
     ErrorCode.AUTH_FORBIDDEN: "접근 권한이 없습니다.",
     ErrorCode.SEAT_ALREADY_EXISTS: "이미 존재하는 좌석입니다.",
+    ErrorCode.SEAT_NOT_AVAILABLE: "해당 좌석은 현재 이용 불가 상태입니다.",
     ErrorCode.AUTH_INVALID_STUDENT_ID: "유효하지 않은 학번입니다.",
 }
 

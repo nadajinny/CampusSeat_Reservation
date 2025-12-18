@@ -17,6 +17,19 @@ from app.services import reservation_service, user_service
 # 한국 시간대 정의
 KST = timezone(timedelta(hours=9))
 
+# 충돌 검사용: 해당 시설이 현재 점유 중인지 확인
+CONFLICT_CHECK_STATUSES = [
+    models.ReservationStatus.RESERVED,
+    models.ReservationStatus.IN_USE,
+]
+
+# 한도 계산용: 총 사용량 계산 (완료된 것도 포함)
+USAGE_COUNT_STATUSES = [
+    models.ReservationStatus.RESERVED,
+    models.ReservationStatus.IN_USE,
+    models.ReservationStatus.COMPLETED,
+]
+
 
 def process_reservation(
     db: Session,
@@ -48,7 +61,7 @@ def process_reservation(
     # ---------------------------------------------------
 
     # 2-1. 회의실 중복 예약 확인
-    if check_room_conflict(db, request.room_id, start_dt_utc):
+    if check_room_conflict(db, request.room_id, start_dt_utc, end_dt_utc):
         raise ConflictException(
             code=ErrorCode.RESERVATION_CONFLICT,
             message="해당 회의실은 이미 예약되어 있습니다.",
@@ -113,18 +126,19 @@ def process_reservation(
 # --- 내부 지원 함수들 (DB 조회용) ---
 
 
-def check_room_conflict(db: Session, room_id: int, start_time: datetime) -> bool:
+def check_room_conflict(db: Session, room_id: int, start_time: datetime, end_time: datetime) -> bool:
     """회의실 중복 예약 확인"""
     conflict = (
         db.query(models.Reservation)
         .filter(
             models.Reservation.meeting_room_id == room_id,
-            models.Reservation.start_time == start_time,
-            models.Reservation.status == models.ReservationStatus.RESERVED,
+            models.Reservation.status.in_(CONFLICT_CHECK_STATUSES),
+            models.Reservation.start_time < end_time,
+            models.Reservation.end_time > start_time,
         )
         .first()
     )
-    
+
     return conflict is not None
 
 
@@ -138,7 +152,7 @@ def check_user_daily_meeting_limit(db: Session, student_id: int, target_date: da
         .filter(
             models.Reservation.student_id == student_id,
             models.Reservation.meeting_room_id.isnot(None),
-            models.Reservation.status == models.ReservationStatus.RESERVED,
+            models.Reservation.status.in_(USAGE_COUNT_STATUSES),
             models.Reservation.start_time >= start_of_day,
             models.Reservation.start_time <= end_of_day,
         )
@@ -159,7 +173,7 @@ def check_user_weekly_meeting_limit(db: Session, student_id: int, target_date: d
         .filter(
             models.Reservation.student_id == student_id,
             models.Reservation.meeting_room_id.isnot(None),
-            models.Reservation.status == models.ReservationStatus.RESERVED,
+            models.Reservation.status.in_(USAGE_COUNT_STATUSES),
             models.Reservation.start_time >= start_of_week,
             models.Reservation.start_time <= end_of_week,
         )

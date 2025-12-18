@@ -88,3 +88,19 @@ CONFLICT = {
     }
 }
 
+CONFLICT = {
+    409: {
+        "model": ErrorResponse,
+        "description": "리소스 충돌",
+        "content": {
+            "application/json": {
+                "example": {
+                    "is_success": False,
+                    "code": ErrorCode.SEAT_ALREADY_EXISTS,
+                    "payload": {"message": ERROR_MESSAGES[ErrorCode.SEAT_ALREADY_EXISTS]}
+                }
+            }
+        }
+    }
+}
+

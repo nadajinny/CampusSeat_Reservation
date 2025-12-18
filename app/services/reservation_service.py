@@ -9,6 +9,12 @@ from sqlalchemy.orm import Session
 
 from app import models
 
+# 충돌 검사용: 해당 시설이 현재 점유 중인지 확인
+CONFLICT_CHECK_STATUSES = [
+    models.ReservationStatus.RESERVED,
+    models.ReservationStatus.IN_USE,
+]
+
 
 def check_overlap_with_other_facility(
     db: Session,
@@ -27,7 +33,7 @@ def check_overlap_with_other_facility(
 
     query = db.query(models.Reservation).filter(
         models.Reservation.student_id == student_id,
-        models.Reservation.status == models.ReservationStatus.RESERVED,
+        models.Reservation.status.in_(CONFLICT_CHECK_STATUSES),
         models.Reservation.start_time < end_time,
         models.Reservation.end_time > start_time,
     )
