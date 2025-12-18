@@ -109,15 +109,6 @@ class TestTokenValidation:
         assert len(parts) >= 3
         assert parts[1] == str(test_user.student_id)
 
-    def test_validate_expired_token(self):
-        """만료된 토큰 검증 실패"""
-        # 현재 프로젝트에서는 단순 토큰 사용 (JWT 아님)
-        # JWT 도입 시 만료 검증 로직 추가 필요
-        expired_token = "token-202312345-expired"
-
-        # 검증 - 형식은 맞지만 만료 여부는 별도 로직 필요
-        assert "token" in expired_token
-
     def test_validate_invalid_token(self):
         """잘못된 토큰 검증 실패"""
         invalid_token = "invalid-format-token"
