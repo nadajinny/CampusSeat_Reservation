@@ -92,7 +92,7 @@ def test_token(test_user):
 def multiple_users(db_session):
     """여러 테스트 사용자 생성"""
     users = []
-    for i in range(202312346, 202312351):  # 5명의 사용자 생성
+    for i in range(202312346, 202312356):  # 10명의 사용자 생성
         user = User(
             student_id=i,
             last_login_at=datetime.now(UTC)
@@ -186,9 +186,9 @@ def test_meeting_room(db_session):
 
 @pytest.fixture
 def available_meeting_rooms(db_session):
-    """이용 가능한 회의실 리스트"""
+    """이용 가능한 회의실 리스트 (스키마에서 허용된 ID: 1, 2, 3)"""
     rooms = []
-    for room_id in range(1, 6):  # 회의실 1-5번
+    for room_id in range(1, 4):  # 회의실 1-3번 (스키마에서 허용된 범위)
         room = MeetingRoom(
             room_id=room_id,
             min_capacity=3,

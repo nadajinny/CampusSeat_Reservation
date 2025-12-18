@@ -8,7 +8,7 @@ from app.constants import ErrorCode, ERROR_MESSAGES
 
 class BusinessException(Exception):
     def __init__(
-        self, 
+        self,
         code: ErrorCode, 
         message: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None  # [New] 상세 정보 수신
