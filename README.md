@@ -96,25 +96,40 @@
 
 ## 🚀 How to Run
 
-1. **Backend API (FastAPI) 실행**
+1. **Install & bootstrap backend**
 
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate        # Windows: .venv\Scripts\activate
    pip install -r requirements.txt
+   ```
+
+2. **Run FastAPI (port 8000)**
+
+   ```bash
    uvicorn app.main:app --reload --port 8000
    ```
 
-   FastAPI가 http://127.0.0.1:8000 에서 동작해야 로그인/예약 관리 화면이 API와 연동됩니다.
+   → API docs: http://127.0.0.1:8000/docs  
+   → 로그인·예약 API를 제공하는 백엔드. 항상 8000 포트에서 실행되어야 합니다.
 
-2. **정적 프런트엔드 미리보기**
+3. **Serve the frontend on port 5500 (same origin for every page)**
 
    ```bash
+   # project root에서 실행해야 /js, /css, *.html 전체가 노출됩니다.
    python3 -m http.server 5500
-   # http://127.0.0.1:5500/login.html (또는 dashboard.html)
    ```
 
-   `my-reservations.html`과 `login.html`은 실행 중인 FastAPI 백엔드와 통신하여 데이터를 불러옵니다.
+   → 브라우저 주소: http://127.0.0.1:5500/login.html  
+   → 로그인/예약/조회 페이지들은 모두 이 주소(127.0.0.1:5500)에서 열어야 세션 스토리지를 공유하여 `accessToken`이 유지됩니다. (localhost나 file:// 로 열면 토큰이 공유되지 않습니다.)
+
+4. **Usage flow**
+
+   1. 브라우저에서 http://127.0.0.1:5500/login.html 접속 → 학번 로그인 (FastAPI에서 토큰 발급).  
+   2. 로그인 후 같은 탭에서 dashboard → search-availability / my-reservations 등으로 이동.  
+   3. 모든 API 요청은 http://127.0.0.1:8000 로 향하므로 백엔드 서버가 종료되지 않았는지 확인합니다.
+
+> Tip: 백엔드와 프런트 서버는 서로 다른 포트를 사용해도 되지만, **정적 페이지는 항상 동일한 host:port(127.0.0.1:5500)** 에서 열어야 로그인 토큰이 유지됩니다.
 
 ---
 

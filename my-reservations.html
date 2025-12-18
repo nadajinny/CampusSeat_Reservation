@@ -67,9 +67,10 @@
       </table>
     </section>
   </main>
+  <script src="js/api-client.js"></script>
   <script>
     (function () {
-      const API_BASE_URL = (window.APP_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+      const API = window.ApiClient;
       const STATUS_LABELS = {
         RESERVED: "예약 완료",
         IN_USE: "사용 중",
@@ -139,10 +140,9 @@
         toggleEmptyState(ui, false);
 
         try {
-          const query = buildQuery(ui);
-          const path = query ? `/api/reservations/me?${query}` : "/api/reservations/me";
-          const data = await requestJson(path);
-          const items = data?.payload?.items || [];
+          const params = buildQueryParams(ui);
+          const payload = await API.fetchMyReservations(params);
+          const items = payload?.items || [];
           renderReservations(ui, items);
           if (items.length > 0) {
             showStatus(ui, `총 ${items.length}건의 예약을 불러왔습니다.`, false);
@@ -164,7 +164,7 @@
 
         showStatus(ui, "예약을 취소하는 중입니다...", false);
         try {
-          await requestJson(`/api/reservations/me/${reservationId}`, { method: "DELETE" });
+          await API.cancelReservation(reservationId);
           showStatus(ui, `예약 #${reservationId}을(를) 취소했습니다.`, false);
           loadReservations(ui);
         } catch (error) {
@@ -237,58 +237,17 @@
         ui?.emptyState?.classList.toggle("hidden", !show);
       }
 
-      function buildQuery(ui) {
-        const params = new URLSearchParams();
+      function buildQueryParams(ui) {
+        const params = {};
         const from = ui.filterFrom?.value;
         const to = ui.filterTo?.value;
         const type = ui.filterType?.value;
 
-        if (from) params.set("from", from);
-        if (to) params.set("to", to);
-        if (type) params.set("type", type);
+        if (from) params.from = from;
+        if (to) params.to = to;
+        if (type) params.type = type;
 
-        return params.toString();
-      }
-
-      async function requestJson(path, options = {}) {
-        const url = `${API_BASE_URL}${path}`;
-        const fetchOptions = { method: "GET", ...options };
-        const headers = new Headers(fetchOptions.headers || {});
-        headers.set("Accept", "application/json");
-
-        if (fetchOptions.body && !(fetchOptions.body instanceof FormData) && !headers.has("Content-Type")) {
-          headers.set("Content-Type", "application/json");
-        }
-
-        const authHeaders = buildAuthHeaders();
-        Object.entries(authHeaders).forEach(([key, value]) => {
-          if (!headers.has(key)) {
-            headers.set(key, value);
-          }
-        });
-
-        fetchOptions.headers = headers;
-
-        const response = await fetch(url, fetchOptions);
-        const contentType = response.headers.get("content-type") || "";
-        const isJson = contentType.includes("application/json");
-        const data = isJson ? await response.json() : await response.text();
-
-        const failed = !response.ok || (isJson && data?.is_success === false);
-        if (failed) {
-          const message = isJson
-            ? data?.payload?.message || data?.message || "요청 처리 중 오류가 발생했습니다."
-            : String(data || "요청 처리 중 오류가 발생했습니다.");
-          throw new Error(message);
-        }
-
-        return data;
-      }
-
-      function buildAuthHeaders() {
-        const token = sessionStorage.getItem("accessToken");
-        if (!token) return {};
-        return { Authorization: `Bearer ${token}` };
+        return params;
       }
     })();
   </script>

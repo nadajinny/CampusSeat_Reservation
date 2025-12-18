@@ -1,58 +1,48 @@
 // js/app.js
+// Frontend orchestration for availability search and reservation flows.
 
 (() => {
-  const STORAGE_KEY = "campusReservations";
+  let API = window.ApiClient;
+  let apiClientLoader = null;
   const PENDING_KEY = "pendingReservation";
+
   const MEETING_ROOMS = [
-    { id: "MR-1", name: "회의실 1", capacity: 6 },
-    { id: "MR-2", name: "회의실 2", capacity: 8 },
-    { id: "MR-3", name: "회의실 3", capacity: 10 },
+    { id: 1, name: "회의실 1", capacity: 6 },
+    { id: 2, name: "회의실 2", capacity: 8 },
+    { id: 3, name: "회의실 3", capacity: 10 },
   ];
 
   const MEETING_SLOTS = createSlots({ startHour: 9, endHour: 18, duration: 1 });
   const READING_SLOTS = createSlots({ startHour: 9, endHour: 18, duration: 2 });
 
-  const READING_SEATS = Array.from({ length: 15 }, (_, idx) => {
-    const number = idx + 1;
-    const label = `좌석 ${number}`;
-    return { id: `SEAT-${number}`, label };
-  });
-
   const state = {
-    spaceType: null,
-    date: "",
-    selectedMeetingSlot: null,
+    studentId: null,
+    filters: {
+      spaceType: null,
+      date: "",
+    },
+    meetingStatus: null,
+    seatStatus: null,
+    selectedReadingSlot: null,
+    selectedSeat: null,
     selectedMeetingRoom: null,
     participants: ["", "", ""],
-    selectedReadingSlots: [],
-    selectedSeat: null,
   };
 
-  let studentId = null;
-  const ReservationEngineClass = window.ReservationEngine;
-
   document.addEventListener("DOMContentLoaded", () => {
-    if (!ReservationEngineClass) {
-      console.error("시스템을 실행하기 위해 ReservationEngine이 필요합니다.");
-      alert("시스템 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
-      return;
-    }
-
-    studentId = sessionStorage.getItem("studentId");
-
-    if (!studentId) {
+    state.studentId = sessionStorage.getItem("studentId");
+    if (!state.studentId) {
       alert("로그인이 필요합니다.");
       window.location.href = "login.html";
       return;
     }
 
-    renderUserSummary(studentId);
+    renderUserSummary(state.studentId);
     bindLogout();
 
-    initAvailabilityFlow();
+    initSearchPage();
     initMeetingReservationPage();
     initSeatReservationPage();
-    renderMyReservations();
   });
 
   function createSlots({ startHour, endHour, duration }) {
@@ -60,11 +50,15 @@
     for (let hour = startHour; hour + duration <= endHour; hour += 1) {
       const startMinutes = hour * 60;
       const endMinutes = (hour + duration) * 60;
+      const startLabel = `${formatHour(hour)}:00`;
+      const endLabel = `${formatHour(hour + duration)}:00`;
       slots.push({
         id: `${hour}-${hour + duration}`,
-        label: `${formatHour(hour)}:00 ~ ${formatHour(hour + duration)}:00`,
+        label: `${startLabel} ~ ${endLabel}`,
         startMinutes,
         endMinutes,
+        start: startLabel,
+        end: endLabel,
       });
     }
     return slots;
@@ -90,44 +84,255 @@
     });
   }
 
-  function initAvailabilityFlow() {
-    const filters = document.getElementById("availability-filters");
-    if (!filters) return;
+  function initSearchPage() {
+    const page = document.getElementById("search-page");
+    if (!page) return;
 
     const dateInput = document.getElementById("reservationDate");
     const typeInputs = document.querySelectorAll('input[name="spaceType"]');
+    const readingProceedBtn = document.getElementById("readingProceedBtn");
 
     typeInputs.forEach((input) => {
       input.addEventListener("change", () => {
-        state.spaceType = input.value;
-        resetFlowState();
-        runAvailabilityFlow();
+        state.filters.spaceType = input.value;
+        handleFilterChange();
       });
     });
 
     if (dateInput) {
       dateInput.addEventListener("change", () => {
-        state.date = dateInput.value;
-        resetFlowState();
-        runAvailabilityFlow();
+        state.filters.date = dateInput.value;
+        handleFilterChange();
       });
     }
 
-    const proceedButton = document.getElementById("readingProceedBtn");
-    if (proceedButton) {
-      proceedButton.addEventListener("click", () => {
-        if (state.selectedReadingSlots.length === 0) return;
+    if (readingProceedBtn) {
+      readingProceedBtn.addEventListener("click", () => {
+        if (!state.selectedReadingSlot) return;
+        const slot = getSlotById(state.selectedReadingSlot, "READING");
+        if (!slot) return;
         setPendingReservation({
           type: "READING",
-          date: state.date,
-          slotIds: [...state.selectedReadingSlots],
+          date: state.filters.date,
+          slot,
         });
         window.location.href = "seat-reservation.html";
       });
     }
 
+    handleFilterChange();
+  }
+
+  async function handleFilterChange() {
+    const date = state.filters.date;
+    const type = state.filters.spaceType;
+    state.selectedReadingSlot = null;
+    state.selectedSeat = null;
+
+    toggleSection("meeting-time-section", false);
+    toggleSection("reading-time-section", false);
+
+    if (!date || !type) {
+      clearElement("meeting-time-list");
+      clearElement("reading-time-grid");
+      updateReadingProceedButton();
+      return;
+    }
+
+    try {
+      await ensureApiClient();
+    } catch (error) {
+      console.error(error);
+      alert(error.message || "API 클라이언트를 불러오지 못했습니다.");
+      return;
+    }
+
+    if (type === "MEETING") {
+      await fetchMeetingStatus(date);
+      renderMeetingTimeSlots();
+      toggleSection("meeting-time-section", true);
+    } else if (type === "READING") {
+      await fetchSeatStatus(date);
+      renderReadingTimeSlots();
+      toggleSection("reading-time-section", true);
+    }
+  }
+
+  async function fetchMeetingStatus(date) {
+    await ensureApiClient().catch((error) => {
+      console.error(error);
+    });
+    const listEl = document.getElementById("meeting-time-list");
+    if (listEl) {
+      listEl.innerHTML = "<p class=\"notice\">회의실 현황을 불러오는 중...</p>";
+    }
+    try {
+      const data = await API.fetchMeetingRoomStatus(date);
+      state.meetingStatus = data;
+    } catch (error) {
+      console.error(error);
+      state.meetingStatus = null;
+      if (listEl) {
+        listEl.innerHTML = `<p class="error">${error.message || "회의실 현황을 불러오지 못했습니다."}</p>`;
+      }
+    }
+  }
+
+  async function fetchSeatStatus(date) {
+    await ensureApiClient().catch((error) => {
+      console.error(error);
+    });
+    const grid = document.getElementById("reading-time-grid");
+    if (grid) {
+      grid.innerHTML = "<p class=\"notice\">좌석 현황을 불러오는 중...</p>";
+    }
+    try {
+      const data = await API.fetchSeatStatus(date);
+      state.seatStatus = data;
+    } catch (error) {
+      console.error(error);
+      state.seatStatus = null;
+      if (grid) {
+        grid.innerHTML = `<p class="error">${error.message || "좌석 현황을 불러오지 못했습니다."}</p>`;
+      }
+    }
+  }
+
+  function renderMeetingTimeSlots() {
+    const listEl = document.getElementById("meeting-time-list");
+    if (!listEl) return;
+
+    if (!state.meetingStatus || !state.meetingStatus.rooms?.length) {
+      listEl.innerHTML = "<p class=\"notice\">선택한 날짜의 회의실 정보를 찾을 수 없습니다.</p>";
+      return;
+    }
+
+    const slotCount = state.meetingStatus.rooms[0].slots.length;
+    listEl.innerHTML = "";
+
+    for (let index = 0; index < slotCount; index += 1) {
+      const slotMeta = state.meetingStatus.rooms[0].slots[index];
+      const slot = getSlotMeta(slotMeta.start, slotMeta.end, "MEETING");
+      if (!slot) continue;
+
+      const availableRooms = state.meetingStatus.rooms.filter((room) => {
+        const slotInfo = room.slots[index];
+        return slotInfo && slotInfo.is_available;
+      }).length;
+
+      const row = document.createElement("div");
+      row.className = "time-slot-row";
+
+      const label = document.createElement("strong");
+      label.textContent = slot.label;
+
+      const info = document.createElement("span");
+      info.className = "notice";
+      info.textContent = availableRooms > 0 ? `예약 가능 회의실 ${availableRooms}개` : "예약 불가";
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = availableRooms > 0 ? "회의실 선택" : "예약 불가";
+      button.disabled = availableRooms === 0;
+
+      if (availableRooms > 0) {
+        button.addEventListener("click", () => {
+          setPendingReservation({
+            type: "MEETING",
+            date: state.filters.date,
+            slot,
+          });
+          window.location.href = "meeting-room-reservation.html";
+        });
+      }
+
+      row.append(label, info, button);
+      listEl.appendChild(row);
+    }
+  }
+
+  function renderReadingTimeSlots() {
+    const grid = document.getElementById("reading-time-grid");
+    if (!grid) return;
+
+    if (!state.seatStatus || !state.seatStatus.seats?.length) {
+      grid.innerHTML = "<p class=\"notice\">선택한 날짜의 좌석 정보를 찾을 수 없습니다.</p>";
+      return;
+    }
+
+    grid.innerHTML = "";
+
+    for (let i = 0; i < READING_SLOTS.length; i += 2) {
+      const row = document.createElement("div");
+      row.className = "slot-row";
+
+      const firstSlot = READING_SLOTS[i];
+      if (firstSlot) {
+        row.appendChild(createSeatSlotCard(firstSlot));
+      }
+
+      const secondSlot = READING_SLOTS[i + 1];
+      if (secondSlot) {
+        row.appendChild(createSeatSlotCard(secondSlot));
+      }
+
+      grid.appendChild(row);
+    }
+
     updateReadingProceedButton();
-    runAvailabilityFlow();
+  }
+
+  function createSeatSlotCard(slot) {
+    const card = document.createElement("div");
+    card.className = "slot-card";
+
+    const title = document.createElement("strong");
+    title.textContent = slot.label;
+
+    const availableCount = countAvailableSeatsForSlot(slot);
+    const status = document.createElement("span");
+    status.className = `status-pill ${availableCount > 0 ? "status-available" : "status-blocked"}`;
+    status.textContent = availableCount > 0 ? `${availableCount}석 예약 가능` : "예약 불가";
+
+    const button = document.createElement("button");
+    button.type = "button";
+    const selected = state.selectedReadingSlot === slot.id;
+    button.textContent = selected ? "선택됨" : "예약 선택";
+    button.disabled = availableCount === 0;
+
+    if (availableCount > 0) {
+      button.addEventListener("click", () => {
+        if (state.selectedReadingSlot === slot.id) {
+          state.selectedReadingSlot = null;
+        } else {
+          state.selectedReadingSlot = slot.id;
+        }
+        renderReadingTimeSlots();
+      });
+    } else {
+      button.classList.add("blocked");
+    }
+
+    if (selected) {
+      card.classList.add("selected");
+    }
+
+    card.append(title, status, button);
+    return card;
+  }
+
+  function countAvailableSeatsForSlot(slot) {
+    if (!state.seatStatus?.seats?.length) return 0;
+    return state.seatStatus.seats.filter((seat) =>
+      isSeatFree(seat, slot.start, slot.end)
+    ).length;
+  }
+
+  function updateReadingProceedButton() {
+    const proceedButton = document.getElementById("readingProceedBtn");
+    if (!proceedButton) return;
+    const enabled = state.filters.spaceType === "READING" && Boolean(state.selectedReadingSlot);
+    proceedButton.disabled = !enabled;
   }
 
   function initMeetingReservationPage() {
@@ -136,176 +341,66 @@
 
     const contextError = document.getElementById("meeting-context-error");
     const pending = getPendingReservation();
+    state.selectedMeetingRoom = null;
+    state.participants = ["", "", ""];
 
-    if (!pending || pending.type !== "MEETING" || !pending.slotId || !pending.date) {
-      if (contextError) contextError.classList.remove("hidden");
+    if (!pending || pending.type !== "MEETING" || !pending.slot || !pending.date) {
+      if (contextError) {
+        contextError.classList.remove("hidden");
+        contextError.textContent = "유효한 예약 정보가 없습니다. 다시 조건을 선택해 주세요.";
+      }
       toggleSection("meeting-room-section", false);
       toggleSection("meeting-summary-section", false);
       return;
     }
 
-    state.spaceType = "MEETING";
-    state.date = pending.date;
-    state.selectedMeetingSlot = pending.slotId;
-    state.selectedMeetingRoom = null;
-    state.participants = ["", "", ""];
+    populateMeetingContext(pending);
+    loadMeetingRoomOptions(pending);
+  }
 
-    const slot = getSlotById(state.selectedMeetingSlot, "MEETING");
+  async function loadMeetingRoomOptions(pending) {
+    const listEl = document.getElementById("meeting-room-list");
+    if (listEl) {
+      listEl.innerHTML = "<p class=\"notice\">회의실 정보를 불러오는 중입니다...</p>";
+    }
+    try {
+      await ensureApiClient();
+      const status = await API.fetchMeetingRoomStatus(pending.date);
+      state.meetingStatus = status;
+      renderMeetingRooms(pending);
+    } catch (error) {
+      console.error(error);
+      if (listEl) {
+        listEl.innerHTML = `<p class="error">${error.message || "회의실 정보를 불러오지 못했습니다."}</p>`;
+      }
+    }
+  }
+
+  function populateMeetingContext(pending) {
     const dateEl = document.getElementById("meeting-context-date");
     const slotEl = document.getElementById("meeting-context-slot");
-    if (dateEl) dateEl.textContent = `예약 날짜: ${state.date}`;
-    if (slotEl) slotEl.textContent = slot ? `예약 시간: ${slot.label}` : "예약 시간을 불러올 수 없습니다.";
-
-    toggleSection("meeting-room-section", true);
-    renderMeetingRooms();
-    renderMeetingSummary();
+    if (dateEl) dateEl.textContent = `예약 날짜: ${pending.date}`;
+    if (slotEl) slotEl.textContent = `예약 시간: ${pending.slot?.label}`;
   }
 
-  function initSeatReservationPage() {
-    const page = document.getElementById("seat-reservation-page");
-    if (!page) return;
-
-    const contextError = document.getElementById("reading-context-error");
-    const pending = getPendingReservation();
-
-    if (
-      !pending ||
-      pending.type !== "READING" ||
-      !pending.slotIds ||
-      !Array.isArray(pending.slotIds) ||
-      pending.slotIds.length === 0
-    ) {
-      if (contextError) contextError.classList.remove("hidden");
-      toggleSection("reading-seat-section", false);
-      toggleSection("reading-summary-section", false);
-      return;
-    }
-
-    state.spaceType = "READING";
-    state.date = pending.date;
-    state.selectedReadingSlots = pending.slotIds;
-    state.selectedSeat = null;
-
-    const listEl = document.getElementById("reading-context-slots");
-    if (listEl) {
-      const listItems = state.selectedReadingSlots
-        .map((slotId) => {
-          const slot = getSlotById(slotId, "READING");
-          return slot ? `<li>${state.date} ${slot.label}</li>` : "";
-        })
-        .filter(Boolean)
-        .join("");
-      listEl.innerHTML = listItems || "<li>선택한 시간 정보를 불러올 수 없습니다.</li>";
-    }
-
-    toggleSection("reading-seat-section", true);
-    renderSeatMap();
-    renderReadingSummary();
-
-    const randomSeatBtn = document.getElementById("randomSeatBtn");
-    if (randomSeatBtn) {
-      randomSeatBtn.addEventListener("click", handleRandomSeatAssignment);
-    }
-  }
-
-
-  function runAvailabilityFlow() {
-    const ready = Boolean(state.spaceType && state.date);
-
-    toggleSection("meeting-time-section", ready && state.spaceType === "MEETING");
-    toggleSection("reading-time-section", ready && state.spaceType === "READING");
-
-    if (!ready) {
-      clearElement("meeting-time-list");
-      clearElement("reading-time-grid");
-      updateReadingProceedButton();
-      return;
-    }
-
-    if (state.spaceType === "MEETING") {
-      renderMeetingTimeSlots();
-    } else if (state.spaceType === "READING") {
-      renderReadingTimeSlots();
-    }
-  }
-
-  function resetFlowState({ preserveFilters = true } = {}) {
-    state.selectedMeetingSlot = null;
-    state.selectedMeetingRoom = null;
-    state.participants = ["", "", ""];
-    state.selectedReadingSlots = [];
-    state.selectedSeat = null;
-
-    if (!preserveFilters) {
-      state.spaceType = null;
-      state.date = "";
-      const dateInput = document.getElementById("reservationDate");
-      if (dateInput) dateInput.value = "";
-      document.querySelectorAll('input[name="spaceType"]').forEach((input) => {
-        input.checked = false;
-      });
-    }
-
-    clearElement("meeting-time-list");
-    clearElement("reading-time-grid");
-    updateReadingProceedButton();
-  }
-
-  function renderMeetingTimeSlots() {
-    const listEl = document.getElementById("meeting-time-list");
-    if (!listEl) return;
-
-    const reservations = loadReservations();
-    listEl.innerHTML = "";
-
-    MEETING_SLOTS.forEach((slot) => {
-      const row = document.createElement("div");
-      row.className = "time-slot-row";
-
-      const label = document.createElement("strong");
-      label.textContent = slot.label;
-
-      const button = document.createElement("button");
-      button.type = "button";
-
-      const available = isMeetingSlotAvailable(reservations, slot);
-      button.textContent = available ? "예약 진행" : "예약 불가";
-      button.disabled = !available;
-
-      if (available) {
-        button.addEventListener("click", () => {
-          goToMeetingReservation(slot);
-        });
-      }
-
-      row.append(label, button);
-      listEl.appendChild(row);
-    });
-  }
-
-  function goToMeetingReservation(slot) {
-    if (!state.date) return;
-    setPendingReservation({
-      type: "MEETING",
-      date: state.date,
-      slotId: slot.id,
-    });
-    window.location.href = "meeting-room-reservation.html";
-  }
-
-  function renderMeetingRooms() {
+  function renderMeetingRooms(pending) {
+    const section = document.getElementById("meeting-room-section");
     const listEl = document.getElementById("meeting-room-list");
-    if (!listEl) return;
+    if (!section || !listEl) return;
 
-    if (!state.selectedMeetingSlot) {
-      listEl.innerHTML = "";
-      toggleSection("meeting-room-section", false);
+    if (!state.meetingStatus) {
+      section.classList.add("hidden");
       return;
     }
 
-    const reservations = loadReservations();
+    const slotIndex = getMeetingSlotIndex(pending.slot);
+    if (slotIndex < 0) {
+      listEl.innerHTML = "<p class=\"error\">선택한 시간 정보를 찾을 수 없습니다.</p>";
+      return;
+    }
+
+    section.classList.remove("hidden");
     listEl.innerHTML = "";
-    toggleSection("meeting-room-section", true);
 
     MEETING_ROOMS.forEach((room) => {
       const card = document.createElement("div");
@@ -317,45 +412,46 @@
       const button = document.createElement("button");
       button.type = "button";
 
-      const available = isRoomAvailable(reservations, state.date, room.id, state.selectedMeetingSlot);
+      const slotInfo = state.meetingStatus.rooms.find((item) => item.room_id === room.id)?.slots?.[slotIndex];
+      const available = slotInfo?.is_available;
       const selected = state.selectedMeetingRoom === room.id;
 
-      button.textContent = available ? (selected ? "선택됨" : "예약 가능") : "예약 불가";
       if (!available) {
+        button.textContent = "예약 불가";
+        button.disabled = true;
         button.classList.add("blocked");
+      } else {
+        button.textContent = selected ? "선택됨" : "예약 가능";
+        button.addEventListener("click", () => {
+          state.selectedMeetingRoom = room.id;
+          renderMeetingRooms(pending);
+          renderMeetingSummary(pending);
+        });
       }
 
-      button.addEventListener("click", () => {
-        if (!available) {
-          alert("해당 회의실은 현재 예약할 수 없습니다.");
-          return;
-        }
-        state.selectedMeetingRoom = room.id;
-        renderMeetingRooms();
-        renderMeetingSummary();
-        runAvailabilityFlow();
-      });
+      if (selected) {
+        card.classList.add("selected");
+      }
 
       card.append(info, button);
       listEl.appendChild(card);
     });
+
+    renderMeetingSummary(pending);
   }
 
-  function renderMeetingSummary() {
-    const summarySection = document.getElementById("meeting-summary");
-    if (!summarySection) return;
+  function renderMeetingSummary(pending) {
+    const section = document.getElementById("meeting-summary-section");
+    const container = document.getElementById("meeting-summary");
+    if (!section || !container) return;
 
-    if (!state.selectedMeetingSlot || !state.selectedMeetingRoom) {
-      summarySection.innerHTML = "";
-      toggleSection("meeting-summary-section", false);
+    if (!state.selectedMeetingRoom) {
+      section.classList.add("hidden");
+      container.innerHTML = "";
       return;
     }
 
-    const slot = getSlotById(state.selectedMeetingSlot, "MEETING");
     const room = MEETING_ROOMS.find((item) => item.id === state.selectedMeetingRoom);
-
-    if (!slot || !room) return;
-
     const participantFields = state.participants
       .map(
         (value, index) => `
@@ -365,7 +461,7 @@
               type="text"
               id="participant-${index}"
               data-participant-index="${index}"
-              placeholder="예: 20230000${index + 1}"
+              placeholder="20230000${index + 1}"
               pattern="\\d{9}"
               inputmode="numeric"
               maxlength="9"
@@ -377,385 +473,301 @@
       )
       .join("");
 
-    summarySection.innerHTML = `
-      <p><strong>공간</strong> : ${room.name}</p>
-      <p><strong>일시</strong> : ${state.date} ${slot.label}</p>
+    container.innerHTML = `
+      <p><strong>공간</strong> : ${room?.name || `회의실 ${state.selectedMeetingRoom}`}</p>
+      <p><strong>일시</strong> : ${pending.date} ${pending.slot.label}</p>
       <div id="participantInputGroup">
-        <p><strong>참여자 목록</strong> (각 칸에 학번 9자리를 입력하세요)</p>
+        <p><strong>참여자 목록</strong> (최소 3명, 학번 9자리)</p>
         ${participantFields}
+        <button type="button" id="addParticipantBtn" class="secondary-button">참여자 추가</button>
       </div>
       <p class="error" id="meeting-error" aria-live="polite"></p>
       <button type="button" id="submitMeetingReservation">예약 제출</button>
     `;
-    toggleSection("meeting-summary-section", true);
+
+    section.classList.remove("hidden");
     scrollToSection("meeting-summary-section");
 
-    const participantInputs = summarySection.querySelectorAll("input[data-participant-index]");
+    const participantInputs = container.querySelectorAll("input[data-participant-index]");
     participantInputs.forEach((input) => {
       input.addEventListener("input", (event) => {
         const target = event.target;
         const index = Number(target.dataset.participantIndex);
         if (Number.isNaN(index)) return;
-        state.participants[index] = target.value;
+        state.participants[index] = target.value.trim();
       });
     });
 
+    const addButton = document.getElementById("addParticipantBtn");
+    if (addButton) {
+      addButton.addEventListener("click", () => {
+        if (state.participants.length >= 6) {
+          alert("참여자는 최대 6명까지 입력할 수 있습니다.");
+          return;
+        }
+        state.participants.push("");
+        renderMeetingSummary(pending);
+      });
+    }
+
     const submitButton = document.getElementById("submitMeetingReservation");
     if (submitButton) {
-      submitButton.addEventListener("click", handleMeetingReservationSubmit);
+      submitButton.addEventListener("click", () => handleMeetingReservationSubmit(pending));
     }
   }
 
-  function handleMeetingReservationSubmit() {
+  async function handleMeetingReservationSubmit(pending) {
     const errorEl = document.getElementById("meeting-error");
     if (errorEl) errorEl.textContent = "";
 
     const participants = state.participants.map((value) => value.trim()).filter(Boolean);
 
-    const reservations = loadReservations();
-    const slot = getSlotById(state.selectedMeetingSlot, "MEETING");
-    const room = MEETING_ROOMS.find((item) => item.id === state.selectedMeetingRoom);
-
-    if (!slot || !room) return;
-
-    const engine = new ReservationEngineClass(reservations, studentId);
-    const validation = engine.validateMeeting({
-      date: state.date,
-      slot,
-      roomId: state.selectedMeetingRoom,
-      participants,
-    });
-
-    if (!validation.ok) {
-      if (errorEl) errorEl.textContent = validation.message;
+    if (participants.length < 3) {
+      if (errorEl) errorEl.textContent = "참여자는 최소 3명 이상 입력해야 합니다.";
       return;
     }
 
-    const newReservation = {
-      id: generateReservationId("M"),
-      studentId,
-      spaceType: "MEETING",
-      date: state.date,
-      timeSlots: [{ ...slot }],
-      roomId: room.id,
-      roomName: room.name,
-      participants: validation.participants || participants,
-      createdAt: new Date().toISOString(),
-    };
+    if (participants.some((id) => !/^\d{9}$/.test(id))) {
+      if (errorEl) errorEl.textContent = "참여자 학번은 9자리 숫자여야 합니다.";
+      return;
+    }
 
-    reservations.push(newReservation);
-    saveReservations(reservations);
+    if (!state.selectedMeetingRoom) {
+      if (errorEl) errorEl.textContent = "회의실을 먼저 선택해 주세요.";
+      return;
+    }
 
-    state.participants = ["", "", ""];
-    renderMeetingTimeSlots();
-    renderMeetingRooms();
-    renderMeetingSummary();
-    renderMyReservations();
-    clearPendingReservation();
-    postSaveAlert();
+    try {
+      await ensureApiClient();
+      await API.createMeetingReservation({
+        room_id: state.selectedMeetingRoom,
+        date: pending.date,
+        start_time: pending.slot.start,
+        end_time: pending.slot.end,
+        participants: participants.map((studentId) => ({ student_id: studentId })),
+      });
+      clearPendingReservation();
+      alert("회의실 예약이 완료되었습니다.");
+      postReservationRedirect();
+    } catch (apiError) {
+      console.error(apiError);
+      if (errorEl) {
+        errorEl.textContent = apiError.message || "예약을 생성하지 못했습니다.";
+      } else {
+        alert(apiError.message || "예약을 생성하지 못했습니다.");
+      }
+    }
   }
 
-  function renderReadingTimeSlots() {
-    const grid = document.getElementById("reading-time-grid");
-    if (!grid) return;
+  function initSeatReservationPage() {
+    const page = document.getElementById("seat-reservation-page");
+    if (!page) return;
 
-    const reservations = loadReservations();
-    grid.innerHTML = "";
+    const contextError = document.getElementById("reading-context-error");
+    const pending = getPendingReservation();
+    state.selectedSeat = null;
 
-    const createSlotCard = (slot) => {
+    if (!pending || pending.type !== "READING" || !pending.slot || !pending.date) {
+      if (contextError) {
+        contextError.classList.remove("hidden");
+        contextError.textContent = "유효한 예약 정보가 없습니다. 다시 조건을 선택해 주세요.";
+      }
+      toggleSection("reading-seat-section", false);
+      toggleSection("reading-summary-section", false);
+      return;
+    }
+
+    populateSeatContext(pending);
+    loadSeatOptions(pending);
+
+    const randomSeatBtn = document.getElementById("randomSeatBtn");
+    if (randomSeatBtn) {
+      randomSeatBtn.addEventListener("click", () => handleRandomSeatReservation(pending));
+    }
+  }
+
+  function populateSeatContext(pending) {
+    const listEl = document.getElementById("reading-context-slots");
+    if (!listEl) return;
+    listEl.innerHTML = `<li>${pending.date} ${pending.slot.label}</li>`;
+  }
+
+  async function loadSeatOptions(pending) {
+    const map = document.getElementById("reading-seat-map");
+    if (map) {
+      map.innerHTML = "<p class=\"notice\">좌석 지도를 불러오는 중입니다...</p>";
+    }
+    try {
+      await ensureApiClient();
+      const status = await API.fetchSeatStatus(pending.date);
+      state.seatStatus = status;
+      renderSeatMap(pending);
+    } catch (error) {
+      console.error(error);
+      if (map) {
+        map.innerHTML = `<p class="error">${error.message || "좌석 지도를 불러오지 못했습니다."}</p>`;
+      }
+    }
+  }
+
+  function renderSeatMap(pending) {
+    const section = document.getElementById("reading-seat-section");
+    const map = document.getElementById("reading-seat-map");
+    if (!section || !map) return;
+
+    if (!state.seatStatus) {
+      section.classList.add("hidden");
+      return;
+    }
+
+    section.classList.remove("hidden");
+    map.innerHTML = "";
+
+    const seats = state.seatStatus.seats || [];
+    const seatsPerRow = 5;
+    const rowsNeeded = Math.ceil(seats.length / seatsPerRow);
+
+    for (let rowIndex = 0; rowIndex < rowsNeeded; rowIndex += 1) {
+      const row = document.createElement("div");
+      row.className = "seat-row";
+      map.appendChild(row);
+    }
+
+    const rows = map.querySelectorAll(".seat-row");
+    seats.forEach((seat, index) => {
+      const rowIndex = Math.floor(index / seatsPerRow);
+      const row = rows[rowIndex];
+      if (!row) return;
+
       const card = document.createElement("div");
-      card.className = "slot-card";
+      card.className = "seat-card";
 
-      const title = document.createElement("strong");
-      title.textContent = slot.label;
-
-      const status = document.createElement("span");
-      const available = isReadingSlotAvailable(reservations, slot);
-      status.textContent = available ? "예약 가능" : "예약 불가";
-      status.className = `status-pill ${available ? "status-available" : "status-blocked"}`;
+      const label = document.createElement("strong");
+      label.textContent = `좌석 ${seat.seat_id}`;
 
       const button = document.createElement("button");
       button.type = "button";
-
-      const selected = state.selectedReadingSlots.includes(slot.id);
-      button.textContent = selected ? "선택 취소" : "예약 가능";
+      const available = isSeatFree(seat, pending.slot.start, pending.slot.end);
+      const isSelectedSeat = state.selectedSeat === seat.seat_id;
+      const selected = isSelectedSeat && available;
 
       if (!available) {
         button.textContent = "예약 불가";
         button.disabled = true;
         button.classList.add("blocked");
-      } else if (!selected && !canSelectReadingSlot(slot)) {
-        button.disabled = true;
-        button.classList.add("blocked");
+        if (isSelectedSeat) {
+          state.selectedSeat = null;
+        }
       } else {
-        button.addEventListener("click", () => handleReadingSlotClick(slot));
+        button.textContent = selected ? "선택됨" : "예약 가능";
+        button.addEventListener("click", () => {
+          state.selectedSeat = selected ? null : seat.seat_id;
+          renderSeatMap(pending);
+        });
       }
 
       if (selected) {
         card.classList.add("selected");
       }
 
-      card.append(title, status, button);
-      return card;
-    };
+      card.append(label, button);
+      row.appendChild(card);
+    });
 
-    for (let i = 0; i < READING_SLOTS.length; i += 2) {
-      const row = document.createElement("div");
-      row.className = "slot-row";
-
-      const firstSlot = READING_SLOTS[i];
-      if (firstSlot) {
-        row.appendChild(createSlotCard(firstSlot));
-      }
-
-      const secondSlot = READING_SLOTS[i + 1];
-      if (secondSlot) {
-        row.appendChild(createSlotCard(secondSlot));
-      }
-
-      grid.appendChild(row);
-    }
-
-    updateReadingProceedButton();
+    renderSeatSummary(pending);
   }
 
-  function handleReadingSlotClick(slot) {
-    const alreadySelected = state.selectedReadingSlots.includes(slot.id);
-    if (alreadySelected) {
-      state.selectedReadingSlots = state.selectedReadingSlots.filter((id) => id !== slot.id);
-    } else if (canSelectReadingSlot(slot)) {
-      state.selectedReadingSlots.push(slot.id);
-    }
+  function renderSeatSummary(pending) {
+    const section = document.getElementById("reading-summary-section");
+    const container = document.getElementById("reading-summary");
+    if (!section || !container) return;
 
-    state.selectedSeat = null;
-    renderReadingTimeSlots();
-    updateReadingProceedButton();
-  }
-
-  function updateReadingProceedButton() {
-    const proceedButton = document.getElementById("readingProceedBtn");
-    if (!proceedButton) return;
-    const enabled = state.spaceType === "READING" && state.selectedReadingSlots.length > 0;
-    proceedButton.disabled = !enabled;
-  }
-
-  function renderSeatMap() {
-    const map = document.getElementById("reading-seat-map");
-    if (!map) return;
-
-    if (state.selectedReadingSlots.length === 0) {
-      map.innerHTML = "";
-      toggleSection("reading-seat-section", false);
+    if (!state.selectedSeat) {
+      section.classList.add("hidden");
+      container.innerHTML = "";
       return;
     }
 
-    toggleSection("reading-seat-section", true);
-    const reservations = loadReservations();
-    const selectedSlots = state.selectedReadingSlots
-      .map((id) => getSlotById(id, "READING"))
-      .filter(Boolean);
-
-    map.innerHTML = "";
-
-    const seatsPerRow = 3;
-    for (let i = 0; i < READING_SEATS.length; i += seatsPerRow) {
-      const row = document.createElement("div");
-      row.className = "seat-row";
-
-      const rowSeats = READING_SEATS.slice(i, i + seatsPerRow);
-      rowSeats.forEach((seat) => {
-        const card = document.createElement("div");
-        card.className = "seat-card";
-
-        const label = document.createElement("strong");
-        label.textContent = seat.label;
-
-        const button = document.createElement("button");
-        button.type = "button";
-
-        const available = ReservationEngineClass.isSeatFree(reservations, state.date, seat.id, selectedSlots);
-        const selected = state.selectedSeat === seat.id;
-
-        if (!available) {
-          button.textContent = "예약 불가";
-          button.disabled = true;
-          button.classList.add("blocked");
-        } else {
-          button.textContent = selected ? "선택됨" : "예약 가능";
-          button.addEventListener("click", () => handleSeatSelection(seat.id));
-        }
-
-        if (selected) {
-          button.classList.add("selected");
-        }
-
-        card.append(label, button);
-        row.appendChild(card);
-      });
-
-      map.appendChild(row);
-    }
-  }
-
-  function handleSeatSelection(seatId) {
-    state.selectedSeat = state.selectedSeat === seatId ? null : seatId;
-    renderSeatMap();
-    renderReadingSummary();
-    runAvailabilityFlow();
-  }
-
-  function handleRandomSeatAssignment() {
-    if (state.spaceType !== "READING" || !state.date || state.selectedReadingSlots.length === 0) {
-      alert("열람실 예약을 위해 먼저 날짜와 시간대를 선택해 주세요.");
-      return;
-    }
-
-    const reservations = loadReservations();
-    const selectedSlots = state.selectedReadingSlots
-      .map((id) => getSlotById(id, "READING"))
-      .filter(Boolean);
-
-    const availableSeats = READING_SEATS.filter((seat) =>
-      ReservationEngineClass.isSeatFree(reservations, state.date, seat.id, selectedSlots)
-    ).map(
-      (seat) => seat.id
-    );
-
-    if (availableSeats.length === 0) {
-      alert("랜덤 배정 가능한 좌석이 없습니다.");
-      return;
-    }
-
-    const randomIndex = Math.floor(Math.random() * availableSeats.length);
-    state.selectedSeat = availableSeats[randomIndex];
-    renderSeatMap();
-    renderReadingSummary();
-    runAvailabilityFlow();
-  }
-
-  function renderReadingSummary() {
-    const summary = document.getElementById("reading-summary");
-    if (!summary) return;
-
-    if (state.selectedReadingSlots.length === 0 || !state.selectedSeat) {
-      summary.innerHTML = "";
-      toggleSection("reading-summary-section", false);
-      return;
-    }
-
-    const slots = state.selectedReadingSlots
-      .map((id) => getSlotById(id, "READING"))
-      .filter(Boolean);
-
-    const slotList = slots.map((slot) => `<li>${state.date} ${slot.label}</li>`).join("");
-
-    const seatLabel = ReservationEngineClass.getSeatLabel
-      ? ReservationEngineClass.getSeatLabel(state.selectedSeat)
-      : state.selectedSeat;
-
-    summary.innerHTML = `
-      <p><strong>좌석</strong> : ${seatLabel}</p>
+    container.innerHTML = `
+      <p><strong>좌석</strong> : 좌석 ${state.selectedSeat}</p>
       <p><strong>선택한 시간</strong></p>
-      <ul>${slotList}</ul>
+      <ul><li>${pending.date} ${pending.slot.label}</li></ul>
       <p class="error" id="reading-error" aria-live="polite"></p>
       <button type="button" id="submitReadingReservation">예약 제출</button>
     `;
-    toggleSection("reading-summary-section", true);
+
+    section.classList.remove("hidden");
     scrollToSection("reading-summary-section");
 
     const submitButton = document.getElementById("submitReadingReservation");
     if (submitButton) {
-      submitButton.addEventListener("click", () => handleReadingReservationSubmit(slots));
+      submitButton.addEventListener("click", () => handleSeatReservationSubmit(pending));
     }
   }
 
-  function handleReadingReservationSubmit(slots) {
+  async function handleSeatReservationSubmit(pending) {
     const errorEl = document.getElementById("reading-error");
     if (errorEl) errorEl.textContent = "";
 
-    const reservations = loadReservations();
-
-    const engine = new ReservationEngineClass(reservations, studentId);
-    const validation = engine.validateSeat({
-      date: state.date,
-      slots,
-      seatId: state.selectedSeat,
-    });
-
-    if (!validation.ok) {
-      if (errorEl) errorEl.textContent = validation.message;
-      if (validation.code === "SEAT_BOOKED") {
-        renderSeatMap();
-      }
+    if (!state.selectedSeat) {
+      if (errorEl) errorEl.textContent = "좌석을 먼저 선택해 주세요.";
       return;
     }
 
-    const newReservation = {
-      id: generateReservationId("R"),
-      studentId,
-      spaceType: "READING",
-      date: state.date,
-      seatId: state.selectedSeat,
-      seatLabel: getSeatLabel(state.selectedSeat),
-      timeSlots: slots.map((slot) => ({ ...slot })),
-      createdAt: new Date().toISOString(),
-    };
-
-    reservations.push(newReservation);
-    saveReservations(reservations);
-
-    renderReadingTimeSlots();
-    renderSeatMap();
-    renderReadingSummary();
-    renderMyReservations();
-    clearPendingReservation();
-    postSaveAlert();
+    try {
+      await ensureApiClient();
+      await API.createSeatReservation(
+        {
+          date: pending.date,
+          start_time: pending.slot.start,
+          end_time: pending.slot.end,
+          seat_id: state.selectedSeat,
+        },
+        { random: false }
+      );
+      clearPendingReservation();
+      alert(`좌석 ${state.selectedSeat} 예약이 완료되었습니다.`);
+      postReservationRedirect();
+    } catch (apiError) {
+      console.error(apiError);
+      if (errorEl) {
+        errorEl.textContent = apiError.message || "좌석 예약을 생성하지 못했습니다.";
+      } else {
+        alert(apiError.message || "좌석 예약을 생성하지 못했습니다.");
+      }
+    }
   }
 
-  function renderMyReservations() {
-    const listBody = document.getElementById("reservationList");
-    if (!listBody) return;
+  async function handleRandomSeatReservation(pending) {
+    const errorEl = document.getElementById("reading-error");
+    if (errorEl) errorEl.textContent = "";
 
-    const emptyState = document.getElementById("reservation-empty");
-    const reservations = loadReservations().filter((res) => res.studentId === studentId);
-
-    reservations.sort((a, b) => {
-      if (a.date === b.date) {
-        return a.timeSlots[0].startMinutes - b.timeSlots[0].startMinutes;
+    try {
+      await ensureApiClient();
+      const payload = await API.createSeatReservation(
+        {
+          date: pending.date,
+          start_time: pending.slot.start,
+          end_time: pending.slot.end,
+        },
+        { random: true }
+      );
+      clearPendingReservation();
+      alert(`랜덤 좌석 배정 완료! 좌석 ${payload?.seat_id ?? ""}이(가) 예약되었습니다.`);
+      postReservationRedirect();
+    } catch (apiError) {
+      console.error(apiError);
+      if (errorEl) {
+        errorEl.textContent = apiError.message || "랜덤 좌석 배정에 실패했습니다.";
+      } else {
+        alert(apiError.message || "랜덤 좌석 배정에 실패했습니다.");
       }
-      return a.date.localeCompare(b.date);
-    });
-
-    listBody.innerHTML = "";
-
-    if (reservations.length === 0) {
-      if (emptyState) emptyState.classList.remove("hidden");
-      return;
     }
+  }
 
-    if (emptyState) emptyState.classList.add("hidden");
-
-    reservations.forEach((reservation) => {
-      const tr = document.createElement("tr");
-
-      const slotText = reservation.timeSlots.map((slot) => slot.label).join(", ");
-      const typeLabel = reservation.spaceType === "MEETING" ? "회의실" : "열람실";
-      const seatLabel =
-        ReservationEngineClass && ReservationEngineClass.getSeatLabel
-          ? ReservationEngineClass.getSeatLabel(reservation.seatId)
-          : reservation.seatId;
-      const spaceLabel = reservation.spaceType === "MEETING" ? reservation.roomName : reservation.seatLabel || seatLabel;
-
-      tr.innerHTML = `
-        <td>${reservation.id}</td>
-        <td>${typeLabel}</td>
-        <td>${spaceLabel}</td>
-        <td>${reservation.date}</td>
-        <td>${slotText}</td>
-      `;
-
-      listBody.appendChild(tr);
-    });
+  function isSeatFree(seatStatus, start, end) {
+    const slot = seatStatus.slots.find((item) => item.start === start && item.end === end);
+    return slot ? slot.is_available : false;
   }
 
   function toggleSection(id, show) {
@@ -775,20 +787,6 @@
     if (el) el.innerHTML = "";
   }
 
-  function loadReservations() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch (err) {
-      console.error("예약 데이터를 불러오지 못했습니다.", err);
-      return [];
-    }
-  }
-
-  function saveReservations(reservations) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(reservations));
-  }
-
   function setPendingReservation(data) {
     sessionStorage.setItem(PENDING_KEY, JSON.stringify(data));
   }
@@ -796,7 +794,8 @@
   function getPendingReservation() {
     try {
       const raw = sessionStorage.getItem(PENDING_KEY);
-      return raw ? JSON.parse(raw) : null;
+      const data = raw ? JSON.parse(raw) : null;
+      return normalizePendingReservation(data);
     } catch (err) {
       console.error("임시 예약 정보를 불러오지 못했습니다.", err);
       return null;
@@ -807,45 +806,9 @@
     sessionStorage.removeItem(PENDING_KEY);
   }
 
-  function generateReservationId(prefix) {
-    return `${prefix}-${Date.now().toString(36)}`;
-  }
-
-  function getSlotById(id, type) {
-    const list = type === "MEETING" ? MEETING_SLOTS : READING_SLOTS;
-    return list.find((slot) => slot.id === id) || null;
-  }
-
-  function isMeetingSlotAvailable(reservations, slot) {
-    return MEETING_ROOMS.some((room) => isRoomAvailable(reservations, state.date, room.id, slot.id));
-  }
-
-  function isRoomAvailable(reservations, date, roomId, slotId) {
-    return !ReservationEngineClass.isRoomReserved(reservations, date, roomId, slotId);
-  }
-
-  function isReadingSlotAvailable(reservations, slot) {
-    return READING_SEATS.some((seat) =>
-      ReservationEngineClass.isSeatFree(reservations, state.date, seat.id, [slot])
-    );
-  }
-
-  function canSelectReadingSlot(slot) {
-    if (!state.spaceType || state.spaceType !== "READING") return false;
-    if (state.selectedReadingSlots.includes(slot.id)) return true;
-    if (state.selectedReadingSlots.length >= 2) return false;
-
-    const conflicts = state.selectedReadingSlots
-      .map((id) => getSlotById(id, "READING"))
-      .filter(Boolean)
-      .some((selectedSlot) => ReservationEngineClass.slotsOverlap(selectedSlot, slot));
-
-    return !conflicts;
-  }
-
-  function postSaveAlert() {
+  function postReservationRedirect() {
     const goToMyReservation = window.confirm(
-      "예약이 완료되었습니다.\n확인을 누르면 내 예약 관리 페이지로 이동합니다.\n취소를 누르면 예약을 이어서 진행할 수 있습니다."
+      "예약이 완료되었습니다.\n확인을 누르면 내 예약 관리 페이지로 이동합니다.\n취소를 누르면 예약 가능 시간 조회 페이지로 이동합니다."
     );
 
     if (goToMyReservation) {
@@ -853,5 +816,77 @@
     } else {
       window.location.href = "search-availability.html";
     }
+  }
+
+  function getSlotById(id, type) {
+    const list = type === "MEETING" ? MEETING_SLOTS : READING_SLOTS;
+    return list.find((slot) => slot.id === id) || null;
+  }
+
+  function getSlotMeta(start, end, type) {
+    const list = type === "MEETING" ? MEETING_SLOTS : READING_SLOTS;
+    return list.find((slot) => slot.start === start && slot.end === end) || null;
+  }
+
+  function getMeetingSlotIndex(slot) {
+    if (!slot || !state.meetingStatus?.rooms?.length) return -1;
+    const referenceRoom = state.meetingStatus.rooms[0];
+    return referenceRoom.slots.findIndex(
+      (item) => item.start === slot.start && item.end === slot.end
+    );
+  }
+
+  function normalizePendingReservation(pending) {
+    if (!pending) return null;
+    const normalized = { ...pending };
+
+    if (normalized.type === "MEETING" && !normalized.slot) {
+      if (normalized.slotId) {
+        normalized.slot = getSlotById(normalized.slotId, "MEETING");
+      }
+    }
+
+    if (normalized.type === "READING" && !normalized.slot) {
+      let slotId = null;
+      if (Array.isArray(normalized.slotIds) && normalized.slotIds.length > 0) {
+        slotId = normalized.slotIds[0];
+      } else if (normalized.slotId) {
+        slotId = normalized.slotId;
+      }
+
+      if (slotId) {
+        normalized.slot = getSlotById(slotId, "READING");
+      }
+    }
+
+    return normalized;
+  }
+
+  function ensureApiClient() {
+    if (API) {
+      return Promise.resolve(API);
+    }
+
+    if (apiClientLoader) {
+      return apiClientLoader;
+    }
+
+    apiClientLoader = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "js/api-client.js";
+      script.async = true;
+      script.onload = () => {
+        API = window.ApiClient;
+        if (API) {
+          resolve(API);
+        } else {
+          reject(new Error("API 클라이언트를 초기화하지 못했습니다."));
+        }
+      };
+      script.onerror = () => reject(new Error("API 스크립트를 불러오지 못했습니다."));
+      document.head.appendChild(script);
+    });
+
+    return apiClientLoader;
   }
 })();
