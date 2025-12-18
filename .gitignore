@@ -8,3 +8,4 @@ test_cases.md
 validation.md
 library_reservation.db-shm
 library_reservation.db-wal
+test.db
