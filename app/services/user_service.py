@@ -13,8 +13,8 @@ from app import models
 from app.constants import ErrorCode
 from app.exceptions import BusinessException
 
-# 차단된 학번 목록
-INVALID_STUDENT_IDS = {"202099999", "202288888"}
+# 차단된 학번 목록 (정수로 보관하여 입력 타입에 상관없이 일관 비교)
+INVALID_STUDENT_IDS = {202099999, 202288888}
 
 
 def login_student(db: Session, student_id: Union[int, str]) -> models.User:
@@ -22,13 +22,15 @@ def login_student(db: Session, student_id: Union[int, str]) -> models.User:
     학생 로그인 처리
     """
 
-    if student_id in INVALID_STUDENT_IDS:
+    normalized_id = int(student_id)
+
+    if normalized_id in INVALID_STUDENT_IDS:
         raise BusinessException(
             code=ErrorCode.AUTH_INVALID_STUDENT_ID,
             message="접근이 제한된 학번입니다.",
         )
 
-    return get_or_create_user(db, int(student_id))
+    return get_or_create_user(db, normalized_id)
 
 
 def get_user(db: Session, student_id: int) -> Optional[models.User]:
