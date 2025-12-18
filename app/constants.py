@@ -64,6 +64,7 @@ class ReservationLimits:
     MEETING_ROOM_DAILY_LIMIT_MINUTES = 120  # 2 hours per day
     MEETING_ROOM_WEEKLY_LIMIT_MINUTES = 300  # 5 hours per week
     MEETING_ROOM_MIN_PARTICIPANTS = 3
+    MEETING_ROOM_MAX_PARTICIPANTS = 6
 
     # Seat limits
     SEAT_SLOT_MINUTES = 120  # 2 hours

@@ -36,6 +36,16 @@ def process_reservation(
     student_id: int,
     request: schemas.MeetingRoomReservationCreate,
 ) -> models.Reservation:
+    
+    # 0. 회의실 존재 및 상태 검증 (스키마 검증 이후 DB 레벨 확인)
+    room = db.query(models.MeetingRoom).filter(models.MeetingRoom.room_id == request.room_id).first()
+
+    if not room:
+        raise ValidationException(
+            code=ErrorCode.NOT_FOUND,
+            message="존재하지 않는 회의실입니다.",
+        )
+
     min_participants = constants.ReservationLimits.MEETING_ROOM_MIN_PARTICIPANTS
     if len(request.participants) < min_participants:
         raise ValidationException(
