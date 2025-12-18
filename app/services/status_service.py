@@ -8,7 +8,7 @@ from typing import List
 from sqlalchemy.orm import Session
 
 from app import models, schemas
-from app.constants import FacilityConstants, OperationHours, ReservationLimits
+from app.constants import FacilityConstants, OperationHours, ReservationLimits, SeatSlotConstants
 
 KST = timezone(timedelta(hours=9))
 
@@ -87,14 +87,14 @@ def get_seat_status(
         end=f"{OperationHours.END_HOUR:02d}:{OperationHours.END_MINUTE:02d}",
     )
 
-    # 2. 2시간 단위 슬롯 생성 (09-11, 11-13, 13-15, 15-17)
+    # 2. 권장 슬롯 사용 (09-11, 10-12, 11-13, 12-14, 13-15, 14-16, 15-17, 16-18)
     slots_time = []
-    current_hour = OperationHours.START_HOUR
-    while current_hour < OperationHours.END_HOUR - 1:  # 17시까지만 (17-18은 제외)
-        start = Time(current_hour, 0)
-        end = Time(current_hour + 2, 0)
+    for start_str, end_str in SeatSlotConstants.RECOMMENDED_SLOTS:
+        start_hour, start_minute = map(int, start_str.split(":"))
+        end_hour, end_minute = map(int, end_str.split(":"))
+        start = Time(start_hour, start_minute)
+        end = Time(end_hour, end_minute)
         slots_time.append((start, end))
-        current_hour += 2
 
     # 3. 각 좌석별로 슬롯 상태 생성
     seats = []
