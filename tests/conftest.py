@@ -10,7 +10,7 @@ from datetime import datetime, timezone, timedelta, date
 from app.main import app
 from app.database import Base, get_db
 from app.models import User, Seat, MeetingRoom, Reservation, ReservationStatus, ReservationParticipant
-from app.utils.auth import create_access_token
+# from app.utils.auth import create_access_token
 
 # 테스트용 DB URL (SQLite 메모리 DB)
 SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///./test.db"
@@ -42,6 +42,10 @@ def db_session(test_engine):
     session = TestingSessionLocal()
     yield session
     session.rollback()
+    # 모든 테이블 데이터 삭제 (테스트 격리)
+    for table in reversed(Base.metadata.sorted_tables):
+        session.execute(table.delete())
+    session.commit()
     session.close()
 
 
@@ -79,7 +83,8 @@ def test_user(db_session):
 @pytest.fixture
 def test_token(test_user):
     """테스트용 인증 토큰 생성"""
-    token = create_access_token(data={"sub": str(test_user.student_id)})
+    from uuid import uuid4
+    token = f"token-{test_user.student_id}-{uuid4().hex}"
     return token
 
 
