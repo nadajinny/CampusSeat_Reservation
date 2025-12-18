@@ -92,3 +92,19 @@ class FacilityConstants:
     MEETING_ROOM_IDS = [1, 2, 3]
     SEAT_MIN_ID = 1
     SEAT_MAX_ID = 70
+
+
+class SeatSlotConstants:
+    """Seat slot time constants - 권장 슬롯 시간대"""
+
+    # 권장 슬롯: 09-11, 11-13, 13-15, 15-17
+    RECOMMENDED_SLOTS = [
+        ("09:00", "11:00"),
+        ("10:00", "12:00"),
+        ("11:00", "13:00"),
+        ("12:00", "14:00"),
+        ("13:00", "15:00"),
+        ("14:00", "16:00"),
+        ("15:00", "17:00"),
+        ("16:00", "18:00")
+    ]
