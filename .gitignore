@@ -1,0 +1,19 @@
+# Node / build artifacts
+node_modules/
+coverage/
+
+# OS / editor clutter
+.DS_Store
+*.log
+
+# Dependency locks for local use only (reproducible install handled via package-lock)
+package-lock.json
+
+__pycache__/
+*.pyc
+*.pyo
+stage.md
+reserve.md
+library_reservation.db
+test_cases.md
+validation.md

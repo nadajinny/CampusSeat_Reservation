@@ -3,71 +3,61 @@
 <head>
   <meta charset="utf-8" />
   <title>예약 가능 시간 조회</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
   <header>
     <h1>예약 가능 시간 조회</h1>
     <nav>
-      <a href="dashboard.html">메뉴로 돌아가기</a>
+      <a href="dashboard.html">메인으로</a>
+      <button type="button" id="logoutBtn">로그아웃</button>
     </nav>
   </header>
 
-  <main>
-    <form id="search-availability-form">
-      <fieldset>
-        <legend>조회 조건</legend>
+  <main id="search-page">
+    <section id="availability-filters">
+      <h2>예약 조건 선택</h2>
 
-        <div>
-          <label for="date">날짜</label><br />
-          <input type="date" id="date" name="date" required />
-        </div>
-
-        <br />
-
-        <div>
-          <span>시설 유형</span><br />
+      <div class="field-row">
+        <label>시설 유형</label>
+        <div class="inline-options" id="spaceTypeGroup">
           <label>
-            <input type="radio" name="facilityType" value="MEETING_ROOM" required />
+            <input type="radio" name="spaceType" value="MEETING" />
             회의실
           </label>
           <label>
-            <input type="radio" name="facilityType" value="SEAT" />
-            열람실 좌석
+            <input type="radio" name="spaceType" value="READING" />
+            열람실
           </label>
         </div>
+      </div>
 
-        <br />
+      <div class="field-row">
+        <label for="reservationDate">예약 날짜</label>
+        <input type="date" id="reservationDate" required />
+      </div>
 
-        <button type="submit">조회</button>
-      </fieldset>
-    </form>
+      <p class="notice">시설 유형과 날짜를 모두 선택해야 다음 단계가 표시됩니다.</p>
+    </section>
 
-    <section>
-      <h2>조회 결과</h2>
+    <section id="meeting-time-section" class="flow-step hidden">
+      <h2>회의실 시간 선택</h2>
+      <div id="meeting-time-list" class="time-slot-list"></div>
+      <p class="notice">시간을 선택하면 자동으로 회의실 선택 화면으로 이동합니다.</p>
+    </section>
 
-      <table border="1">
-        <thead>
-          <tr>
-            <th>시설</th>
-            <th>번호</th>
-            <th>시간</th>
-            <th>상태</th>
-            <th>예약</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- 예시 -->
-          <tr>
-            <td>회의실</td>
-            <td>1</td>
-            <td>09:00 ~ 10:00</td>
-            <td>가능</td>
-            <td><button>예약</button></td>
-          </tr>
-        </tbody>
-      </table>
+    <section id="reading-time-section" class="flow-step hidden">
+      <h2>열람실 시간 선택 (2시간 단위)</h2>
+      <div id="reading-time-grid" class="slot-grid"></div>
+      <p class="notice">
+        최대 2개의 시간대를 선택할 수 있으며, 서로 겹치는 시간대는 자동으로 비활성화됩니다.
+      </p>
+      <button type="button" id="readingProceedBtn" class="secondary-button" disabled>
+        좌석 선택 화면으로 이동
+      </button>
     </section>
   </main>
+  <script src="js/reservation-engine.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
