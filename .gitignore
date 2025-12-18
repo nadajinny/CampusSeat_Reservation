@@ -1,5 +1,5 @@
 # Node / build artifacts
-node_modules/
+**/node_modules/
 coverage/
 
 # OS / editor clutter
@@ -14,7 +14,7 @@ __pycache__/
 *.pyo
 stage.md
 reserve.md
-library_reservation.db
+backend/library_reservation.db
 .venv/
 test_cases.md
 validation.md
