@@ -67,9 +67,19 @@ def process_reservation(
     duration_minutes = (end_dt_utc - start_dt_utc).total_seconds() / 60
 
     # ---------------------------------------------------
-    # 2. 비즈니스 로직 검증 (커스텀 예외 적용 완료)
+    # 3. 유저 처리 및 예약 생성 (Action)
     # ---------------------------------------------------
 
+    # 3-1. 예약자(메인 유저) 확보
+    user_service.get_or_create_user(db, student_id)
+
+    # 3-2. 참여자들 확보 (참여자들도 User 테이블에 있어야 함)
+    participant_ids: list[int] = []
+    for participant in request.participants:
+        user_service.get_or_create_user(db, participant.student_id)
+        participant_ids.append(participant.student_id)
+
+    
     # 2-1. 회의실 중복 예약 확인
     if check_room_conflict(db, request.room_id, start_dt_utc, end_dt_utc):
         raise ConflictException(
@@ -105,18 +115,6 @@ def process_reservation(
                 message=f"사용자 {pid}의 주간 이용 한도({limit_weekly}분)를 초과했습니다. (현재: {weekly_used}분 사용 중)",
             )
 
-    # ---------------------------------------------------
-    # 3. 유저 처리 및 예약 생성 (Action)
-    # ---------------------------------------------------
-
-    # 3-1. 예약자(메인 유저) 확보
-    user_service.get_or_create_user(db, student_id)
-
-    # 3-2. 참여자들 확보 (참여자들도 User 테이블에 있어야 함)
-    participant_ids: list[int] = []
-    for participant in request.participants:
-        user_service.get_or_create_user(db, participant.student_id)
-        participant_ids.append(participant.student_id)
 
     # 3-3. 최종 예약 생성 (Reservation Service에게 위임)
     new_reservation = reservation_service.create_meeting_room_reservation(
