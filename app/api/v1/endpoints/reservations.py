@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app import schemas
 from app.api.docs import NOT_FOUND, FORBIDDEN
+from app.auth.deps import get_current_student_id
 from app.constants import ReservationType
 from app.database import get_db
 from app.services import reservation_service
@@ -37,14 +38,12 @@ def get_my_reservations(
     to_date: Optional[Date] = Query(None, alias="to", description="종료 날짜 (YYYY-MM-DD)"),
     reservation_type: Optional[str] = Query(None, alias="type", description="예약 유형 (meeting_room | seat)"),
     db: Session = Depends(get_db),
+    student_id: int = Depends(get_current_student_id),
 ):
     """
     내 예약 목록 조회
 
     """
-    # TODO: 인증 연동 후 request.user.id에서 student_id 추출
-    student_id = 202312345
-
     # 1. DB에서 모든 예약 조회
     reservations = reservation_service.get_user_reservations(db, student_id)
 
@@ -119,11 +118,9 @@ def get_my_reservations(
 def cancel_reservation(
     reservation_id: int,
     db: Session = Depends(get_db),
+    student_id: int = Depends(get_current_student_id),
 ):
     """예약 취소 - 중앙화된 에러 핸들링"""
-    # TODO: 인증 연동 후 request.user.id에서 student_id 추출
-    student_id = 202312345
-
     # 서비스 계층에서 검증 및 취소 처리
     reservation = reservation_service.cancel_reservation(
         db=db,
