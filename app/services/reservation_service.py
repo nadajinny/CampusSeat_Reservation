@@ -106,14 +106,28 @@ def create_seat_reservation(
 
 
 def get_user_reservations(db: Session, student_id: int) -> List[models.Reservation]:
-    """특정 사용자 예약 내역 조회"""
-
-    return (
+    """
+    본인이 만든 예약 + 회의실 참여자로 포함된 예약까지 조회.
+    중복을 제거한 뒤 시작 시간 내림차순으로 반환한다.
+    """
+    owned = (
         db.query(models.Reservation)
         .filter(models.Reservation.student_id == student_id)
-        .order_by(models.Reservation.start_time.desc())
         .all()
     )
+
+    participating = (
+        db.query(models.Reservation)
+        .join(
+            models.ReservationParticipant,
+            models.Reservation.reservation_id == models.ReservationParticipant.reservation_id,
+        )
+        .filter(models.ReservationParticipant.participant_student_id == student_id)
+        .all()
+    )
+
+    merged = {res.reservation_id: res for res in owned + participating}
+    return sorted(merged.values(), key=lambda r: r.start_time, reverse=True)
 
 
 def cancel_reservation(
