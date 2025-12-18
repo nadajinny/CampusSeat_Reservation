@@ -41,7 +41,7 @@ const seatReservation = ({ date, slots, seatId = "SEAT-1", studentId = USER_ID }
   timeSlots: slots,
 });
 
-describe("ReservationEngine.validateMeeting", () => {
+describe("회의실 예약 검증", () => {
   const baseRequest = {
     date: FUTURE_DATE,
     slot: SLOT_9_10,
@@ -49,62 +49,60 @@ describe("ReservationEngine.validateMeeting", () => {
     participants: ["123456789", "987654321", "111222333"],
   };
 
-  test("rejects unauthenticated requests", () => {
+  test("인증되지 않은 요청은 거부한다", () => {
     const engine = new ReservationEngine([], null);
     const result = engine.validateMeeting(baseRequest);
-    expect(result).toEqual(
-      expect.objectContaining({ ok: false, message: "Authentication required" })
-    );
+    expect(result).toEqual(expect.objectContaining({ ok: false, message: "인증이 필요합니다." }));
   });
 
-  test("rejects past dates", () => {
+  test("과거 날짜는 거부한다", () => {
     const engine = new ReservationEngine([], USER_ID);
     const result = engine.validateMeeting({ ...baseRequest, date: "2000-01-01" });
     expect(result).toEqual(
-      expect.objectContaining({ ok: false, message: "Past date reservation not allowed" })
+      expect.objectContaining({ ok: false, message: "과거 날짜에는 예약할 수 없습니다." })
     );
   });
 
-  test("requires at least 3 participants", () => {
+  test("참여자는 최소 3명이어야 한다", () => {
     const engine = new ReservationEngine([], USER_ID);
     const result = engine.validateMeeting({ ...baseRequest, participants: ["123"] });
     expect(result).toEqual(
-      expect.objectContaining({ ok: false, message: "Minimum 3 participants required" })
+      expect.objectContaining({ ok: false, message: "최소 3명 이상의 참여자가 필요합니다." })
     );
   });
 
-  test("validates participant format", () => {
+  test("참여자 학번 형식을 검증한다", () => {
     const engine = new ReservationEngine([], USER_ID);
     const result = engine.validateMeeting({
       ...baseRequest,
       participants: ["123456789", "abc", "987654321"],
     });
     expect(result).toEqual(
-      expect.objectContaining({ ok: false, message: "Participant IDs must be 9 digits" })
+      expect.objectContaining({ ok: false, message: "참여자 학번은 9자리 숫자여야 합니다." })
     );
   });
 
-  test("rejects overlapping reservations for same user (meeting)", () => {
+  test("동일 사용자의 회의실 중복 예약을 거부한다", () => {
     const existing = [meetingReservation({ date: FUTURE_DATE, slot: SLOT_9_10 })];
     const engine = new ReservationEngine(existing, USER_ID);
     const result = engine.validateMeeting(baseRequest);
     expect(result).toEqual(
-      expect.objectContaining({ ok: false, message: "User already has reservation at this time" })
+      expect.objectContaining({ ok: false, message: "해당 시간에 이미 예약이 있습니다." })
     );
   });
 
-  test("rejects overlapping reservations from another facility", () => {
+  test("다른 시설 예약과 시간이 겹치면 거부한다", () => {
     const existing = [
       seatReservation({ date: FUTURE_DATE, slots: [SLOT_9_10], seatId: "SEAT-2" }),
     ];
     const engine = new ReservationEngine(existing, USER_ID);
     const result = engine.validateMeeting(baseRequest);
     expect(result).toEqual(
-      expect.objectContaining({ ok: false, message: "Another facility already reserved at this time" })
+      expect.objectContaining({ ok: false, message: "다른 시설에서 같은 시간에 예약이 있습니다." })
     );
   });
 
-  test("rejects when room already reserved", () => {
+  test("회의실이 이미 예약된 경우 거부한다", () => {
     const existing = [
       meetingReservation({
         date: FUTURE_DATE,
@@ -116,11 +114,11 @@ describe("ReservationEngine.validateMeeting", () => {
     const engine = new ReservationEngine(existing, USER_ID);
     const result = engine.validateMeeting(baseRequest);
     expect(result).toEqual(
-      expect.objectContaining({ ok: false, message: "Meeting room already reserved" })
+      expect.objectContaining({ ok: false, message: "해당 회의실이 이미 예약되었습니다." })
     );
   });
 
-  test("enforces daily meeting limit", () => {
+  test("회의실 일일 이용 한도를 검증한다", () => {
     const existing = [
       meetingReservation({ date: FUTURE_DATE, slot: SLOT_9_10 }),
       meetingReservation({ date: FUTURE_DATE, slot: SLOT_10_11 }),
@@ -128,11 +126,11 @@ describe("ReservationEngine.validateMeeting", () => {
     const engine = new ReservationEngine(existing, USER_ID);
     const result = engine.validateMeeting({ ...baseRequest, slot: SLOT_11_12 });
     expect(result).toEqual(
-      expect.objectContaining({ ok: false, message: "Daily meeting room limit exceeded" })
+      expect.objectContaining({ ok: false, message: "회의실 일일 이용 한도를 초과했습니다." })
     );
   });
 
-  test("enforces weekly meeting limit", () => {
+  test("회의실 주간 이용 한도를 검증한다", () => {
     const weeklyDates = ["2030-01-08", "2030-01-09", "2030-01-10", "2030-01-11", "2030-01-12"];
     const existing = weeklyDates.map((date, index) =>
       meetingReservation({ date, slot: slot(`slot-${index}`, 9 + index, 10 + index) })
@@ -140,11 +138,11 @@ describe("ReservationEngine.validateMeeting", () => {
     const engine = new ReservationEngine(existing, USER_ID);
     const result = engine.validateMeeting({ ...baseRequest, date: "2030-01-13", slot: SLOT_9_10 });
     expect(result).toEqual(
-      expect.objectContaining({ ok: false, message: "Weekly meeting room limit exceeded" })
+      expect.objectContaining({ ok: false, message: "회의실 주간 이용 한도를 초과했습니다." })
     );
   });
 
-  test("returns success with normalized participants", () => {
+  test("참여자 정보를 정규화해 성공을 반환한다", () => {
     const engine = new ReservationEngine([], USER_ID);
     const result = engine.validateMeeting({
       ...baseRequest,
@@ -155,90 +153,90 @@ describe("ReservationEngine.validateMeeting", () => {
   });
 });
 
-describe("ReservationEngine.validateSeat", () => {
+describe("열람실 좌석 예약 검증", () => {
   const seatRequest = {
     date: FUTURE_DATE,
     slots: [SLOT_13_15],
     seatId: "SEAT-1",
   };
 
-  test("requires authentication", () => {
+  test("좌석 예약은 인증이 필요하다", () => {
     const engine = new ReservationEngine([], null);
     const result = engine.validateSeat(seatRequest);
-    expect(result).toEqual(
-      expect.objectContaining({ ok: false, message: "Authentication required" })
-    );
+    expect(result).toEqual(expect.objectContaining({ ok: false, message: "인증이 필요합니다." }));
   });
 
-  test("requires at least one slot", () => {
+  test("최소 한 개 이상의 시간대를 요구한다", () => {
     const engine = new ReservationEngine([], USER_ID);
     const result = engine.validateSeat({ ...seatRequest, slots: [] });
-    expect(result).toEqual(expect.objectContaining({ ok: false, message: "No time slot selected" }));
+    expect(result).toEqual(expect.objectContaining({ ok: false, message: "시간대를 선택해 주세요." }));
   });
 
-  test("rejects more than two slots", () => {
+  test("두 개 초과의 시간대를 거부한다", () => {
     const engine = new ReservationEngine([], USER_ID);
     const result = engine.validateSeat({
       ...seatRequest,
       slots: [SLOT_13_15, SLOT_15_17, SLOT_9_10],
     });
-    expect(result).toEqual(expect.objectContaining({ ok: false, message: "Maximum 4 hours per day" }));
+    expect(result).toEqual(
+      expect.objectContaining({ ok: false, message: "하루 최대 4시간까지만 예약할 수 있습니다." })
+    );
   });
 
-  test("rejects overlapping slots", () => {
+  test("겹치는 시간대를 거부한다", () => {
     const engine = new ReservationEngine([], USER_ID);
     const result = engine.validateSeat({
       ...seatRequest,
       slots: [SLOT_13_15, SLOT_14_16],
     });
     expect(result).toEqual(
-      expect.objectContaining({ ok: false, message: "Overlapping time slots" })
+      expect.objectContaining({ ok: false, message: "겹치는 시간대는 선택할 수 없습니다." })
     );
   });
 
-  test("rejects past dates", () => {
+  test("과거 날짜 좌석 예약을 거부한다", () => {
     const engine = new ReservationEngine([], USER_ID);
     const result = engine.validateSeat({ ...seatRequest, date: "2001-01-01" });
     expect(result).toEqual(
-      expect.objectContaining({ ok: false, message: "Past date reservation not allowed" })
+      expect.objectContaining({ ok: false, message: "과거 날짜에는 예약할 수 없습니다." })
     );
   });
 
-  test("rejects outside operating hours", () => {
+  test("운영 시간 외 예약을 거부한다", () => {
     const engine = new ReservationEngine([], USER_ID);
     const result = engine.validateSeat({ ...seatRequest, slots: [SLOT_17_19] });
     expect(result).toEqual(
-      expect.objectContaining({ ok: false, message: "Outside operation hours" })
+      expect.objectContaining({ ok: false, message: "운영 시간 외에는 예약할 수 없습니다." })
     );
   });
 
-  test("requires seat selection", () => {
+  test("좌석 선택이 필수다", () => {
     const engine = new ReservationEngine([], USER_ID);
     const result = engine.validateSeat({ ...seatRequest, seatId: "" });
     expect(result).toEqual(
-      expect.objectContaining({ ok: false, message: "Seat selection required" })
+      expect.objectContaining({ ok: false, message: "좌석을 선택해 주세요." })
     );
   });
 
-  test("rejects when seat already reserved", () => {
+  test("좌석이 이미 예약된 경우 거부한다", () => {
     const existing = [seatReservation({ date: FUTURE_DATE, slots: [SLOT_13_15], seatId: "SEAT-1" })];
     const engine = new ReservationEngine(existing, USER_ID);
     const result = engine.validateSeat(seatRequest);
     expect(result).toEqual(
-      expect.objectContaining({ ok: false, message: "Seat already reserved" })
+      expect.objectContaining({ ok: false, message: "해당 좌석이 이미 예약되었습니다." })
     );
   });
 
-  test("rejects conflicts with meeting reservation", () => {
+  test("회의실 예약과 시간이 겹치면 거부한다", () => {
     const existing = [meetingReservation({ date: FUTURE_DATE, slot: SLOT_13_15 })];
     const engine = new ReservationEngine(existing, USER_ID);
     const result = engine.validateSeat(seatRequest);
     expect(result).toEqual(
-      expect.objectContaining({ ok: false, message: "Another facility already reserved at this time" })
+      expect.objectContaining({ ok: false, message: "다른 시설에서 같은 시간에 예약이 있습니다." })
     );
   });
 
-  test("rejects seat daily limit violations", () => {
+  test("좌석 일일 이용 한도를 검증한다", () => {
     const existing = [
       seatReservation({ date: FUTURE_DATE, slots: [SLOT_09_11], seatId: "SEAT-2" }),
       seatReservation({ date: FUTURE_DATE, slots: [SLOT_11_13], seatId: "SEAT-3" }),
@@ -246,11 +244,11 @@ describe("ReservationEngine.validateSeat", () => {
     const engine = new ReservationEngine(existing, USER_ID);
     const result = engine.validateSeat({ ...seatRequest, slots: [SLOT_13_15] });
     expect(result).toEqual(
-      expect.objectContaining({ ok: false, message: "Daily seat reservation limit exceeded" })
+      expect.objectContaining({ ok: false, message: "열람실 좌석 일일 이용 한도를 초과했습니다." })
     );
   });
 
-  test("accepts valid seat reservation", () => {
+  test("유효한 좌석 예약은 허용한다", () => {
     const engine = new ReservationEngine([], USER_ID);
     const result = engine.validateSeat(seatRequest);
     expect(result.ok).toBe(true);

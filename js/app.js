@@ -33,7 +33,7 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     if (!ReservationEngineClass) {
-      console.error("ReservationEngine is required to run this application.");
+      console.error("시스템을 실행하기 위해 ReservationEngine이 필요합니다.");
       alert("시스템 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
       return;
     }
@@ -327,7 +327,7 @@
 
       button.addEventListener("click", () => {
         if (!available) {
-          alert("This meeting room cannot be reserved");
+          alert("해당 회의실은 현재 예약할 수 없습니다.");
           return;
         }
         state.selectedMeetingRoom = room.id;
@@ -622,7 +622,7 @@
     );
 
     if (availableSeats.length === 0) {
-      alert("No available seats for random assignment");
+      alert("랜덤 배정 가능한 좌석이 없습니다.");
       return;
     }
 

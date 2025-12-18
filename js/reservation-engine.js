@@ -9,47 +9,47 @@
 
     validateMeeting(request = {}) {
       const { date, slot, roomId, participants = [] } = request;
-      if (!this.userId) return ReservationEngine.failure("AUTH_REQUIRED", "Authentication required");
+      if (!this.userId) return ReservationEngine.failure("AUTH_REQUIRED", "인증이 필요합니다.");
       if (!date || !slot || !roomId) {
-        return ReservationEngine.failure("INVALID_REQUEST", "Missing reservation details");
+        return ReservationEngine.failure("INVALID_REQUEST", "예약 정보가 누락되었습니다.");
       }
       if (ReservationEngine.isPastDate(date)) {
-        return ReservationEngine.failure("PAST_DATE", "Past date reservation not allowed");
+        return ReservationEngine.failure("PAST_DATE", "과거 날짜에는 예약할 수 없습니다.");
       }
       if (!ReservationEngine.isWithinOperatingHours(slot)) {
-        return ReservationEngine.failure("OUTSIDE_HOURS", "Outside operation hours");
+        return ReservationEngine.failure("OUTSIDE_HOURS", "운영 시간 외에는 예약할 수 없습니다.");
       }
 
       const normalizedParticipants = participants.map((value) => (value || "").trim()).filter(Boolean);
       if (normalizedParticipants.length < 3) {
-        return ReservationEngine.failure("PARTICIPANT_MIN", "Minimum 3 participants required");
+        return ReservationEngine.failure("PARTICIPANT_MIN", "최소 3명 이상의 참여자가 필요합니다.");
       }
       if (normalizedParticipants.some((id) => !/^\d{9}$/.test(id))) {
-        return ReservationEngine.failure("PARTICIPANT_FORMAT", "Participant IDs must be 9 digits");
+        return ReservationEngine.failure("PARTICIPANT_FORMAT", "참여자 학번은 9자리 숫자여야 합니다.");
       }
 
       const conflict = ReservationEngine.findUserConflict(this.reservations, this.userId, date, [slot]);
       if (conflict) {
         const message =
           conflict.spaceType === "MEETING"
-            ? "User already has reservation at this time"
-            : "Another facility already reserved at this time";
+            ? "해당 시간에 이미 예약이 있습니다."
+            : "다른 시설에서 같은 시간에 예약이 있습니다.";
         return ReservationEngine.failure("USER_CONFLICT", message);
       }
 
       if (ReservationEngine.isRoomReserved(this.reservations, date, roomId, slot.id)) {
-        return ReservationEngine.failure("ROOM_BOOKED", "Meeting room already reserved");
+        return ReservationEngine.failure("ROOM_BOOKED", "해당 회의실이 이미 예약되었습니다.");
       }
 
       const slotDuration = ReservationEngine.getSlotDurationHours(slot);
       const dailyHours = ReservationEngine.getMeetingHoursForDate(this.reservations, this.userId, date);
       if (dailyHours + slotDuration > 2) {
-        return ReservationEngine.failure("DAILY_LIMIT", "Daily meeting room limit exceeded");
+        return ReservationEngine.failure("DAILY_LIMIT", "회의실 일일 이용 한도를 초과했습니다.");
       }
 
       const weeklyHours = ReservationEngine.getMeetingHoursForWeek(this.reservations, this.userId, date);
       if (weeklyHours + slotDuration > 5) {
-        return ReservationEngine.failure("WEEKLY_LIMIT", "Weekly meeting room limit exceeded");
+        return ReservationEngine.failure("WEEKLY_LIMIT", "회의실 주간 이용 한도를 초과했습니다.");
       }
 
       return ReservationEngine.success({ participants: normalizedParticipants });
@@ -57,39 +57,39 @@
 
     validateSeat(request = {}) {
       const { date, slots = [], seatId } = request;
-      if (!this.userId) return ReservationEngine.failure("AUTH_REQUIRED", "Authentication required");
-      if (!date) return ReservationEngine.failure("INVALID_REQUEST", "Missing reservation date");
+      if (!this.userId) return ReservationEngine.failure("AUTH_REQUIRED", "인증이 필요합니다.");
+      if (!date) return ReservationEngine.failure("INVALID_REQUEST", "예약 날짜가 누락되었습니다.");
 
       const normalizedSlots = Array.isArray(slots) ? slots : [];
       if (normalizedSlots.length === 0) {
-        return ReservationEngine.failure("SLOT_REQUIRED", "No time slot selected");
+        return ReservationEngine.failure("SLOT_REQUIRED", "시간대를 선택해 주세요.");
       }
       if (normalizedSlots.length > 2) {
-        return ReservationEngine.failure("DAILY_LIMIT", "Maximum 4 hours per day");
+        return ReservationEngine.failure("DAILY_LIMIT", "하루 최대 4시간까지만 예약할 수 있습니다.");
       }
       if (ReservationEngine.slotsListOverlap(normalizedSlots)) {
-        return ReservationEngine.failure("SLOT_OVERLAP", "Overlapping time slots");
+        return ReservationEngine.failure("SLOT_OVERLAP", "겹치는 시간대는 선택할 수 없습니다.");
       }
       if (ReservationEngine.isPastDate(date)) {
-        return ReservationEngine.failure("PAST_DATE", "Past date reservation not allowed");
+        return ReservationEngine.failure("PAST_DATE", "과거 날짜에는 예약할 수 없습니다.");
       }
       if (!normalizedSlots.every((slot) => ReservationEngine.isWithinOperatingHours(slot))) {
-        return ReservationEngine.failure("OUTSIDE_HOURS", "Outside operation hours");
+        return ReservationEngine.failure("OUTSIDE_HOURS", "운영 시간 외에는 예약할 수 없습니다.");
       }
       if (!seatId) {
-        return ReservationEngine.failure("SEAT_REQUIRED", "Seat selection required");
+        return ReservationEngine.failure("SEAT_REQUIRED", "좌석을 선택해 주세요.");
       }
 
       if (!ReservationEngine.isSeatFree(this.reservations, date, seatId, normalizedSlots)) {
-        return ReservationEngine.failure("SEAT_BOOKED", "Seat already reserved");
+        return ReservationEngine.failure("SEAT_BOOKED", "해당 좌석이 이미 예약되었습니다.");
       }
 
       const conflict = ReservationEngine.findUserConflict(this.reservations, this.userId, date, normalizedSlots);
       if (conflict) {
         const message =
           conflict.spaceType === "MEETING"
-            ? "Another facility already reserved at this time"
-            : "User already has reservation at this time";
+            ? "다른 시설에서 같은 시간에 예약이 있습니다."
+            : "해당 시간에 이미 예약이 있습니다.";
         return ReservationEngine.failure("USER_CONFLICT", message);
       }
 
@@ -99,7 +99,7 @@
       );
       const seatHours = ReservationEngine.getSeatHoursForDate(this.reservations, this.userId, date);
       if (seatHours + totalHours > 4) {
-        return ReservationEngine.failure("DAILY_LIMIT", "Daily seat reservation limit exceeded");
+        return ReservationEngine.failure("DAILY_LIMIT", "열람실 좌석 일일 이용 한도를 초과했습니다.");
       }
 
       return ReservationEngine.success();
