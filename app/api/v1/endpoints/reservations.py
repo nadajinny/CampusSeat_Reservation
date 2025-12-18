@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app import schemas
+from app.api.docs import NOT_FOUND, FORBIDDEN
 from app.constants import ReservationType
 from app.database import get_db
 from app.services import reservation_service
@@ -95,6 +96,51 @@ def get_my_reservations(
     payload = schemas.MyReservationsPayload(items=filtered_items)
 
     return schemas.ApiResponse[schemas.MyReservationsPayload](
+        is_success=True,
+        code=None,
+        payload=payload,
+    )
+
+
+@router.delete(
+    "/me/{reservation_id}",
+    response_model=schemas.ApiResponse[schemas.CancelReservationResponse],
+    responses={**NOT_FOUND, **FORBIDDEN},
+    summary="예약 취소",
+    description="""
+    본인의 예약을 취소합니다.
+
+    제약사항:
+    - RESERVED 상태의 예약만 취소 가능
+    - IN_USE, COMPLETED, CANCELED 상태는 취소 불가
+    - 본인의 예약만 취소 가능
+    """,
+)
+def cancel_reservation(
+    reservation_id: int,
+    db: Session = Depends(get_db),
+):
+    """예약 취소 - 중앙화된 에러 핸들링"""
+    # TODO: 인증 연동 후 request.user.id에서 student_id 추출
+    student_id = 202312345
+
+    # 서비스 계층에서 검증 및 취소 처리
+    reservation = reservation_service.cancel_reservation(
+        db=db,
+        reservation_id=reservation_id,
+        student_id=student_id,
+    )
+
+    # 상태 값 추출
+    status_value = reservation.status.value if hasattr(reservation.status, "value") else reservation.status
+
+    # 응답 생성
+    payload = schemas.CancelReservationResponse(
+        reservation_id=reservation.reservation_id,
+        status=status_value,
+    )
+
+    return schemas.ApiResponse[schemas.CancelReservationResponse](
         is_success=True,
         code=None,
         payload=payload,

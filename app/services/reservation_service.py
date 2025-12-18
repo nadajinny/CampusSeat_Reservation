@@ -3,7 +3,7 @@ services/reservation_service.py - Reservation persistence helpers.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 
 from sqlalchemy.orm import Session
 
@@ -110,18 +110,71 @@ def get_user_reservations(db: Session, student_id: int) -> List[models.Reservati
     )
 
 
-def cancel_reservation(db: Session, reservation_id: int) -> Optional[models.Reservation]:
-    """예약 취소 (상태 변경)"""
+def cancel_reservation(
+    db: Session,
+    reservation_id: int,
+    student_id: int
+) -> models.Reservation:
+    """
+    예약 취소 (상태 변경)
 
+    검증:
+    - 예약 존재 여부
+    - 본인 예약인지 확인
+    - 예약 상태 확인 (RESERVED 상태만 취소 가능)
+    """
+    from app.constants import ErrorCode
+    from app.exceptions import BusinessException, ForbiddenException
+
+    # 1. 예약 조회
     reservation = (
         db.query(models.Reservation)
         .filter(models.Reservation.reservation_id == reservation_id)
         .first()
     )
 
-    if reservation:
-        reservation.status = models.ReservationStatus.CANCELED
-        db.commit()
-        db.refresh(reservation)
+    if not reservation:
+        raise BusinessException(
+            code=ErrorCode.NOT_FOUND,
+            message=f"예약 ID {reservation_id}를 찾을 수 없습니다.",
+        )
+
+    # 2. 본인 예약 확인
+    if reservation.student_id != student_id:
+        raise ForbiddenException(
+            code=ErrorCode.AUTH_FORBIDDEN,
+            message="본인의 예약만 취소할 수 있습니다.",
+        )
+
+    # 3. 예약 상태 확인 - RESERVED 상태만 취소 가능
+    if reservation.status == models.ReservationStatus.CANCELED:
+        raise BusinessException(
+            code=ErrorCode.RESERVATION_ALREADY_CANCELED,
+            message="이미 취소된 예약입니다.",
+        )
+
+    if reservation.status == models.ReservationStatus.IN_USE:
+        raise ForbiddenException(
+            code=ErrorCode.AUTH_FORBIDDEN,
+            message="사용 중인 예약은 취소할 수 없습니다.",
+        )
+
+    if reservation.status == models.ReservationStatus.COMPLETED:
+        raise ForbiddenException(
+            code=ErrorCode.AUTH_FORBIDDEN,
+            message="완료된 예약은 취소할 수 없습니다.",
+        )
+
+    # RESERVED 상태가 아니면 취소 불가
+    if reservation.status != models.ReservationStatus.RESERVED:
+        raise ForbiddenException(
+            code=ErrorCode.AUTH_FORBIDDEN,
+            message="예약 중(RESERVED) 상태의 예약만 취소할 수 있습니다.",
+        )
+
+    # 4. 취소 처리
+    reservation.status = models.ReservationStatus.CANCELED
+    db.commit()
+    db.refresh(reservation)
 
     return reservation

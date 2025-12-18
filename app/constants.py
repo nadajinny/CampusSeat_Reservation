@@ -16,6 +16,7 @@ class ErrorCode(str, Enum):
 
     # Business logic
     RESERVATION_CONFLICT = "RESERVATION_CONFLICT"
+    RESERVATION_ALREADY_CANCELED = "RESERVATION_ALREADY_CANCELED"
     USAGE_LIMIT_EXCEEDED = "USAGE_LIMIT_EXCEEDED"
     DAILY_LIMIT_EXCEEDED = "DAILY_LIMIT_EXCEEDED"
     WEEKLY_LIMIT_EXCEEDED = "WEEKLY_LIMIT_EXCEEDED"
@@ -32,6 +33,7 @@ ERROR_MESSAGES = {
     ErrorCode.INTERNAL_SERVER_ERROR: "서버 내부 오류가 발생했습니다.",
     ErrorCode.PARTICIPANT_MIN_NOT_MET: "회의실 참여자는 최소 3명 이상이어야 합니다.",
     ErrorCode.RESERVATION_CONFLICT: "선택하신 시간대에 이미 예약이 존재합니다.",
+    ErrorCode.RESERVATION_ALREADY_CANCELED: "이미 취소된 예약입니다.",
     ErrorCode.USAGE_LIMIT_EXCEEDED: "시설 이용 한도를 초과했습니다.",
     ErrorCode.DAILY_LIMIT_EXCEEDED: "일일 이용 한도를 초과했습니다.",
     ErrorCode.WEEKLY_LIMIT_EXCEEDED: "주간 이용 한도를 초과했습니다.",

@@ -62,3 +62,13 @@ class MyReservationsPayload(BaseModel):
     """내 예약 목록 응답"""
 
     items: List[MyReservationItem] = Field(default_factory=list, description="예약 목록")
+
+
+# -------------------------------------------------------------------
+# 4. Cancel Reservation Response Schema
+# -------------------------------------------------------------------
+class CancelReservationResponse(BaseModel):
+    """예약 취소 응답"""
+
+    reservation_id: int = Field(..., description="예약 ID")
+    status: str = Field(..., description="변경된 상태 (CANCELED)")

@@ -28,3 +28,6 @@ class ValidationException(BusinessException):
 
 class LimitExceededException(BusinessException):
     pass
+
+class ForbiddenException(BusinessException):
+    pass

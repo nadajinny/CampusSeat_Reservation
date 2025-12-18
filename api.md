@@ -375,26 +375,65 @@
 
 요구사항에 “취소”가 명시되진 않았지만, SRS에는 포함되어 있어 팀 구현 여력 있으면 넣는 게 자연스럽습니다.
 
-**DELETE** `/api/reservations/{reservation_id}`
+**DELETE** `/api/reservations/me/1`
 
 **Success 200**
 
 ```json
+// 응답: 200 OK
 {
   "is_success": true,
-  "code": null,
-  "payload": { "reservation_id": 2001, "status": "CANCELED" }
+  "payload": {
+    "reservation_id": 1,
+    "status": "CANCELED"
+  }
 }
 
 ```
 
-**Fail 403 (시작 후 취소 불가 / 내 예약 아님)**
+**Fail 400 이미 취소된 예약**
 
+시나리오 4: 중복 취소 시도 → 실패 ❌
+// 예약 상태: CANCELED (이미 취소됨)
+**DELETE** ```/api/reservations/me/1```
 ```json
+// 응답: 400 BAD_REQUEST
 {
   "is_success": false,
-  "code": "FORBIDDEN",
-  "payload": { "message": "취소할 수 없습니다." }
+  "code": "RESERVATION_ALREADY_CANCELED",
+  "payload": {
+    "message": "이미 취소된 예약입니다."
+  }
+}
+```
+
+**Fail 403 (시작 후 취소 불가 / 내 예약 아님)**
+
+시나리오 2: IN_USE 상태 → 취소 실패 ❌
+// 예약 상태: IN_USE (사용 중)
+**DELETE** `/api/reservations/me/2`
+```json
+
+// 응답: 403 FORBIDDEN
+{
+  "is_success": false,
+  "code": "AUTH_FORBIDDEN",
+  "payload": {
+    "message": "사용 중인 예약은 취소할 수 없습니다."
+  }
+}
+```
+시나리오 3: COMPLETED 상태 → 취소 실패 ❌
+// 예약 상태: COMPLETED (완료됨)
+**DELETE** ```/api/reservations/me/3```
+```json
+// 응답: 403 FORBIDDEN
+{
+  "is_success": false,
+  "code": "AUTH_FORBIDDEN",
+  "payload": {
+    "message": "완료된 예약은 취소할 수 없습니다."
+  }
 }
 
 ```

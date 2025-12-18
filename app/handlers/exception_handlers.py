@@ -7,7 +7,8 @@ from app.exceptions import (
     BusinessException,
     ConflictException,
     ValidationException,
-    LimitExceededException
+    LimitExceededException,
+    ForbiddenException
 )
 from app.constants import ErrorCode, ERROR_MESSAGES
 from app.schemas.common import ApiResponse, ErrorPayload
@@ -19,6 +20,7 @@ EXCEPTION_STATUS_MAP: dict[Type[BusinessException], int] = {
     ConflictException: status.HTTP_409_CONFLICT,
     ValidationException: status.HTTP_400_BAD_REQUEST,
     LimitExceededException: status.HTTP_400_BAD_REQUEST,
+    ForbiddenException: status.HTTP_403_FORBIDDEN,
 }
 
 # --------------------------------------------------------------------------

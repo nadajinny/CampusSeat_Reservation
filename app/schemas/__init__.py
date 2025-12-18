@@ -12,8 +12,6 @@ from .user import (
     LoginRequest,
     TokenPayload,
     UserResponse,
-    LoginSuccessResponse,
-    LoginErrorResponse,
 )
 
 # Seat
@@ -37,6 +35,7 @@ from .reservation import (
     ReservationBase,
     MyReservationItem,
     MyReservationsPayload,
+    CancelReservationResponse,
 )
 
 # Status
@@ -68,6 +67,7 @@ __all__ = [
     "ReservationBase",
     "MyReservationItem",
     "MyReservationsPayload",
+    "CancelReservationResponse",
     "TimeRange",
     "MeetingRoomSlotStatus",
     "MeetingRoomRoomStatus",
