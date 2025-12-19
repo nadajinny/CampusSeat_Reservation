@@ -174,34 +174,6 @@
 Computer & Artificial Intelligence  
 Jeonbuk National University
 
-
----
-
-## 📄 License
-
-This project is for educational purposes as part of a Software Engineering course.
-- **MeetingRoom**
-- **Seat**
-- **Reservation**
-
-예약 엔티티는 다음 정보를 포함합니다:
-- 예약자 학번
-- 시설 유형 및 번호
-- 시작/종료 시간
-- 참여자 명단(회의실)
-- 생성 시각
-
----
-
-## 🔐 Security & Constraints
-
-- 학번 기반 사용자 인증
-- 세션 기반 접근 제어
-- 관리자/학생 권한 분리
-- HTTPS 기반 데이터 전송
-- 운영시간: **09:00 ~ 18:00**
-- 예약 중복 및 시간 초과 자동 검증
-
 ---
 
 ## 🧠 Reservation Engine & Validation (NEW)
@@ -240,104 +212,6 @@ This project is for educational purposes as part of a Software Engineering cours
 
 ---
 
-## 🖥 UI Structure
-
-본 레포지토리는 **HTML 기반 화면 구조**를 중심으로 구성되어 있습니다.
-
-- 예약 가능 시간 조회 화면
-- 회의실 예약 화면
-- 좌석 예약 화면
-- 내 예약 관리 화면
-- 관리자 예약 조회 / 수정 화면
-
-※ 현재는 UI 구조 중심이며, CSS 및 JavaScript는 단계적으로 확장 예정입니다.
-
----
-
-## 🚀 How to Run
-
-1. **Backend API (FastAPI) 실행**
-
-   ```bash
-   cd backend
-   python3 -m venv .venv
-   source .venv/bin/activate        # Windows: .venv\Scripts\activate
-   pip install -r requirements.txt
-   uvicorn app.main:app --reload --port 8000
-   ```
-
-   FastAPI 서버가 http://127.0.0.1:8000 에서 실행 중이어야 로그인/예약 관리 화면이 정상 동작합니다.
-
-2. **정적 프런트엔드 실행**
-
-   ```bash
-   cd frontend
-   python3 -m http.server 5500
-   # http://127.0.0.1:5500/login.html (또는 dashboard.html)
-   ```
-
-   원하는 HTML(`dashboard.html`, `seat-reservation.html` 등)을 여는 것은 동일하며,
-   백엔드 연동이 필요한 페이지(login, my-reservations)는 자동으로 FastAPI API를 호출합니다.
-
----
-
-## 📁 Project Structure
-
-```
-.
-├── backend/
-│   ├── app/                       # FastAPI 서비스
-│   ├── tests/                     # pytest 테스트
-│   ├── requirements.txt
-│   └── pytest.ini
-├── frontend/
-│   ├── dashboard.html             # 학생/관리자 공용 대시보드
-│   ├── login.html                 # 로그인 화면
-│   ├── search-availability.html   # 예약 가능 시간 조회
-│   ├── meeting-room-reservation.html # 회의실 예약
-│   ├── seat-reservation.html      # 열람실 좌석 예약
-│   ├── my-reservations.html       # 내 예약 관리
-│   ├── css/
-│   │   └── style.css
-│   ├── js/
-│   │   ├── app.js                 # UI 상태 & 이벤트
-│   │   └── reservation-engine.js  # 예약 검증 로직 (OOP/TDD)
-│   ├── __tests__/                 # Jest 단위 테스트
-│   │   └── reservation-engine.test.js
-│   ├── package.json               # npm scripts (npm install / npm test)
-│   └── package-lock.json
-├── docs/
-│   └── frontend-test.md
-└── README.md
-```
-
----
-
-## 📌 Future Improvements
-
-- JavaScript 기반 입력 검증 및 상태 관리
-- 백엔드 연동 (DB / API)
-- 역할 기반 페이지 분리
-- UI/UX 개선 및 반응형 디자인
-- 예약 통계 및 로그 관리 기능
-
----
-
-## 🧑‍💻 Team
-
-소프트웨어공학 프로젝트 5조  
-Computer & Artificial Intelligence  
-Jeonbuk National University
-
-
----
-
-## 📄 License
-
-This project is for educational purposes as part of a Software Engineering course.
-
----
-
 ## 🧰 Development Setup
 
 1. **Install dependencies** (once per machine)
@@ -365,3 +239,7 @@ This project is for educational purposes as part of a Software Engineering cours
 > `node_modules/`와 빌드 산출물은 `.gitignore`에 포함되어 있으므로, 저장소를 새로 클론한 뒤 반드시 `npm install`을 실행해 개발 의존성을 설치하세요.
 
 ---
+
+## 📄 License
+
+This project is for educational purposes as part of a Software Engineering course.
