@@ -8,7 +8,7 @@
 
 Plaintext
 
-`📂 app
+`📂 backend/app
  ├── 📜 main.py          # 1. 앱 실행 & 설정 (가장 바깥, 진입점)
  ├── 📜 database.py      # 2. DB 연결 설정 (Session 관리)
  ├── 📜 models.py        # 3. DB 테이블 정의 (SQLAlchemy - 창고지기)
@@ -45,7 +45,7 @@ Plaintext
 
 가장 중요한 파일 3개의 작성 예시입니다. 이 패턴을 모든 기능(유저, 예약 등)에 똑같이 적용하면 됩니다.
 
-### 1. Schemas (`app/schemas.py`)
+### 1. Schemas (`backend/app/schemas.py`)
 
 데이터가 들어오고 나갈 때의 **포장지(모양)**를 정의합니다.
 
@@ -62,7 +62,7 @@ class SeatResponse(BaseModel):
     seat_id: int
     is_active: bool`
 
-### 2. CRUD (`app/crud.py`)
+### 2. CRUD (`backend/app/crud.py`)
 
 복잡한 클래스 없이 **함수**로 DB 로직을 짭니다. (Service + Repository 역할 통합)
 
@@ -86,7 +86,7 @@ def create_seat(db: Session, seat: schemas.SeatCreate):
     
     return db_seat`
 
-### 3. Router (`app/routers/seats.py`)
+### 3. Router (`backend/app/routers/seats.py`)
 
 URL을 만들고 CRUD 함수를 연결합니다.
 
@@ -117,6 +117,6 @@ def create_seat(seat: schemas.SeatCreate, db: Session = Depends(database.get_db)
 
 ### 🚀 To-Do: 팀원들이 해야 할 일
 
-1. `app/crud.py` 파일 생성하기
-2. `app/routers/` 폴더 만들고 안에 `seats.py` 만들기
+1. `backend/app/crud.py` 파일 생성하기
+2. `backend/app/routers/` 폴더 만들고 안에 `seats.py` 만들기
 3. 위 코드 복사해서 붙여넣고 서버 실행(`run.bat`) 해보기!

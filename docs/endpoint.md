@@ -18,7 +18,7 @@
 
 Python
 
-`# app/api/v1/endpoints/seats.py
+`# backend/app/api/v1/endpoints/seats.py
 @router.post("")
 def create_seat(seat: seat_schemas.SeatCreate, db: Session = Depends(get_db)):
     try:
@@ -33,7 +33,7 @@ def create_seat(seat: seat_schemas.SeatCreate, db: Session = Depends(get_db)):
 
 Python
 
-`# app/api/v1/endpoints/seats.py
+`# backend/app/api/v1/endpoints/seats.py
 @router.post("", response_model=ApiResponse[seat_schemas.SeatResponse])
 def create_seat(seat: seat_schemas.SeatCreate, db: Session = Depends(get_db)):
     # 성공 로직만 깔끔하게 작성
@@ -84,7 +84,7 @@ Request/Response 모델 정의 시 `Field`를 적극 활용하여 예시 값(`ex
 
 Python
 
-`# schemas/meeting_room.py
+`# backend/app/schemas/meeting_room.py
 class MeetingRoomReservationCreate(BaseModel):
     room_id: int = Field(
         ..., 
@@ -124,7 +124,7 @@ class MeetingRoomReservationCreate(BaseModel):
 
 ## 4. 예시 코드 (Full Example)
 
-**app/api/v1/endpoints/meeting_rooms.py**
+**backend/app/api/v1/endpoints/meeting_rooms.py**
 
 Python
 
@@ -168,7 +168,7 @@ def create_meeting_room_reservation(
 
 Python
 
-`# app/exception_handlers.py (예시)
+`# backend/app/handlers/exception_handlers.py (예시)
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from .exceptions import BusinessException

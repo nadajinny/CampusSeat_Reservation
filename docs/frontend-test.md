@@ -1,6 +1,6 @@
 # 🧪 프런트엔드 테스트 가이드
 
-프런트엔드 모듈은 DOM 없이도 실행 가능한 순수 로직을 최대한 `js/` 디렉터리에 모아 두었고, Jest로 해당 모듈을 단위 테스트합니다. 이 문서는 테스트 실행 방법과 현재 커버리지, 새로운 테스트를 추가할 때의 기준을 정리한 것입니다.
+프런트엔드 모듈은 DOM 없이도 실행 가능한 순수 로직을 최대한 `frontend/js/` 디렉터리에 모아 두었고, Jest로 해당 모듈을 단위 테스트합니다. 이 문서는 테스트 실행 방법과 현재 커버리지, 새로운 테스트를 추가할 때의 기준을 정리한 것입니다.
 
 ---
 
@@ -22,7 +22,7 @@ npm test           # 전체 테스트
 npx jest reservation-engine.test.js --watch
 ```
 
-테스트는 모두 순수 JS 로직만 다루므로 별도의 브라우저나 DOM 의존성이 없습니다. 실패 시 스택트레이스에 나온 파일(예: `js/reservation-engine.js`)을 바로 열어 수정하면 됩니다.
+테스트는 모두 순수 JS 로직만 다루므로 별도의 브라우저나 DOM 의존성이 없습니다. 실패 시 스택트레이스에 나온 파일(예: `frontend/js/reservation-engine.js`)을 바로 열어 수정하면 됩니다.
 
 ---
 
@@ -31,13 +31,13 @@ npx jest reservation-engine.test.js --watch
 - `frontend/js/*.js` : 테스트 대상 모듈. DOM 접근 없이 순수 함수 형태로 유지합니다.
 - `frontend/__tests__/*.test.js` : 모듈 당 하나의 테스트 파일을 두고, describe 블록으로 기능 영역을 나눕니다.
 - 테스트 파일 이름은 가능한 한 대상 모듈 이름을 따라갑니다. (`reservation-engine.js` ↔ `reservation-engine.test.js`)
-- 공통 빌더/헬퍼는 테스트 파일 상단에 함수로 정의하여 재사용합니다. 별도 헬퍼 파일이 필요하면 `__tests__/helpers/` 하위에 추가할 수 있습니다.
+- 공통 빌더/헬퍼는 테스트 파일 상단에 함수로 정의하여 재사용합니다. 별도 헬퍼 파일이 필요하면 `frontend/__tests__/helpers/` 하위에 추가할 수 있습니다.
 
 ---
 
 ## 3. ReservationEngine 테스트 커버리지
 
-`frontend/js/reservation-engine.js`는 회의실/열람실 예약 정책의 핵심 규칙을 담당하며, `__tests__/reservation-engine.test.js`에서 다음 세부 케이스를 검증합니다.
+`frontend/js/reservation-engine.js`는 회의실/열람실 예약 정책의 핵심 규칙을 담당하며, `frontend/__tests__/reservation-engine.test.js`에서 다음 세부 케이스를 검증합니다.
 
 ### 3-1. 회의실(`validateMeeting`) 테스트
 

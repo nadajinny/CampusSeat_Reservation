@@ -260,7 +260,7 @@ class ValidationHelpers:
 
 ### **6. pytest 설정 파일**
 
-### **pytest.ini**
+### **backend/pytest.ini**
 
 **ini**
 
@@ -288,7 +288,7 @@ markers =
 
 ### **7.1 테스팅 라이브러리**
 
-**requirements-test.txt**
+**backend/requirements-test.txt**
 
 ```
 pytest==7.4.3              # 테스트 프레임워크
@@ -408,7 +408,7 @@ SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///./test.db"
 
 **테스트 마커 사용:**
 ```bash
-# pytest.ini에 정의된 마커
+# backend/pytest.ini에 정의된 마커
 @pytest.mark.unit          # 단위 테스트
 @pytest.mark.integration   # 통합 테스트
 @pytest.mark.auth          # 인증 관련
@@ -421,6 +421,9 @@ SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///./test.db"
 
 **테스트 실행 명령어:**
 ```bash
+# backend 디렉터리에서 실행
+cd backend
+
 # 전체 테스트 실행
 pytest
 
