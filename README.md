@@ -109,7 +109,7 @@
 
    ```bash
    cd backend
-   uvicorn app.main:app --reload --port 8000
+   uvicorn app.main:app --reload --app-dir backend --port 8000
    ```
 
    → API docs: http://127.0.0.1:8000/docs  
