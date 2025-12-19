@@ -182,6 +182,23 @@ describe("ApiClient login", () => {
       message: "로그인 응답을 확인할 수 없습니다.",
     });
   });
+
+  test("블랙리스트 학번은 AUTH_INVALID_STUDENT_ID 에러를 던진다", async () => {
+    const ApiClient = loadApiClient();
+    global.fetch.mockResolvedValue(
+      buildJsonResponse(
+        { code: "AUTH_INVALID_STUDENT_ID", payload: { message: "접근이 제한된 학번입니다." } },
+        { ok: false, status: 400 }
+      )
+    );
+
+    await expect(ApiClient.login("202099999")).rejects.toMatchObject({
+      name: "ApiError",
+      code: "AUTH_INVALID_STUDENT_ID",
+      status: 400,
+      message: "접근이 제한된 학번입니다.",
+    });
+  });
 });
 
 describe("ApiClient 예약 요청", () => {

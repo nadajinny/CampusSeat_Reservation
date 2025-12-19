@@ -71,7 +71,6 @@
   <script>
     (function () {
       const API_BASE_URL = (window.APP_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
-      const INVALID_IDS = new Set(["202099999", "202288888"]);
 
       document.addEventListener("DOMContentLoaded", () => {
         const form = document.getElementById("login-form");
@@ -91,12 +90,6 @@
 
           if (!/^\d{9}$/.test(studentId)) {
             showStatus("학번은 9자리 숫자여야 합니다.", true);
-            studentIdInput?.focus();
-            return;
-          }
-
-          if (INVALID_IDS.has(studentId)) {
-            showStatus("유효하지 않은 학번입니다.", true);
             studentIdInput?.focus();
             return;
           }
