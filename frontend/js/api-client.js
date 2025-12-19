@@ -1,6 +1,8 @@
 (function (global) {
   const API_BASE_URL = (() => {
-    const base = global.APP_API_BASE_URL || "http://127.0.0.1:8000";
+    // 같은 서버에서 서빙되는 경우 상대 경로 사용 (기본값: 빈 문자열)
+    // 별도 서버에서 API를 호출해야 하는 경우 APP_API_BASE_URL 설정
+    const base = global.APP_API_BASE_URL || "";
     return base.endsWith("/") ? base.slice(0, -1) : base;
   })();
   const STUDENT_ID_KEY = "studentId";
