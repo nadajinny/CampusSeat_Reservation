@@ -254,3 +254,104 @@ describe("열람실 좌석 예약 검증", () => {
     expect(result.ok).toBe(true);
   });
 });
+
+describe("ReservationEngine 유틸리티", () => {
+  const formatDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  test("slotsOverlap는 경계가 맞닿으면 겹치지 않는다", () => {
+    expect(ReservationEngine.slotsOverlap(SLOT_9_10, SLOT_10_11)).toBe(false);
+  });
+
+  test("slotsOverlap는 부분 겹침을 감지한다", () => {
+    expect(ReservationEngine.slotsOverlap(SLOT_09_11, SLOT_10_11)).toBe(true);
+  });
+
+  test("slotsListOverlap는 리스트 내 겹침을 감지한다", () => {
+    expect(ReservationEngine.slotsListOverlap([SLOT_9_10, SLOT_09_11])).toBe(true);
+    expect(ReservationEngine.slotsListOverlap([SLOT_9_10, SLOT_10_11])).toBe(false);
+  });
+
+  test("parseDateOnly는 유효하지 않은 입력을 null로 처리한다", () => {
+    expect(ReservationEngine.parseDateOnly("2030-xx-01")).toBeNull();
+  });
+
+  test("isPastDate는 잘못된 날짜에서 false를 반환한다", () => {
+    expect(ReservationEngine.isPastDate("invalid-date")).toBe(false);
+  });
+
+  test("getWeekRange는 월요일 시작/일요일 끝을 반환한다", () => {
+    const target = ReservationEngine.parseDateOnly("2030-01-09");
+    const { start, end } = ReservationEngine.getWeekRange(target);
+
+    expect(start.getDay()).toBe(1);
+    expect(end.getDay()).toBe(0);
+    expect(target.getTime()).toBeGreaterThanOrEqual(start.getTime());
+    expect(target.getTime()).toBeLessThanOrEqual(end.getTime());
+  });
+
+  test("getMeetingHoursForWeek는 같은 주의 예약만 합산한다", () => {
+    const baseDate = "2030-01-09";
+    const { start, end } = ReservationEngine.getWeekRange(ReservationEngine.parseDateOnly(baseDate));
+    const mid = new Date(start);
+    mid.setDate(start.getDate() + 2);
+    const nextWeek = new Date(end);
+    nextWeek.setDate(end.getDate() + 1);
+
+    const reservations = [
+      meetingReservation({ date: formatDate(start), slot: SLOT_9_10 }),
+      meetingReservation({ date: formatDate(mid), slot: SLOT_10_11 }),
+      meetingReservation({ date: formatDate(nextWeek), slot: SLOT_11_12 }),
+    ];
+
+    const total = ReservationEngine.getMeetingHoursForWeek(reservations, USER_ID, baseDate);
+    expect(total).toBe(2);
+  });
+
+  test("getMeetingHoursForWeek는 잘못된 날짜면 0을 반환한다", () => {
+    const total = ReservationEngine.getMeetingHoursForWeek([], USER_ID, "invalid-date");
+    expect(total).toBe(0);
+  });
+
+  test("isSeatFree는 좌석이나 슬롯이 없으면 false를 반환한다", () => {
+    expect(ReservationEngine.isSeatFree([], FUTURE_DATE, "", [SLOT_13_15])).toBe(false);
+    expect(ReservationEngine.isSeatFree([], FUTURE_DATE, "SEAT-1", [])).toBe(false);
+  });
+
+  test("isSeatFree는 같은 좌석의 겹치는 예약을 거부한다", () => {
+    const existing = [
+      seatReservation({ date: FUTURE_DATE, slots: [SLOT_13_15], seatId: "SEAT-1" }),
+    ];
+
+    expect(ReservationEngine.isSeatFree(existing, FUTURE_DATE, "SEAT-1", [SLOT_14_16])).toBe(false);
+    expect(ReservationEngine.isSeatFree(existing, FUTURE_DATE, "SEAT-2", [SLOT_14_16])).toBe(true);
+  });
+
+  test("findUserConflict는 사용자 겹침 예약을 반환한다", () => {
+    const existing = [
+      meetingReservation({ date: FUTURE_DATE, slot: SLOT_9_10, studentId: USER_ID }),
+      seatReservation({ date: FUTURE_DATE, slots: [SLOT_13_15], studentId: "OTHER_USER" }),
+    ];
+
+    const conflict = ReservationEngine.findUserConflict(
+      existing,
+      USER_ID,
+      FUTURE_DATE,
+      [SLOT_09_11]
+    );
+
+    expect(conflict).toEqual(expect.objectContaining({ spaceType: "MEETING" }));
+    expect(ReservationEngine.findUserConflict(existing, null, FUTURE_DATE, [SLOT_09_11])).toBeNull();
+  });
+
+  test("isRoomReserved는 동일 회의실과 슬롯만 확인한다", () => {
+    const existing = [meetingReservation({ date: FUTURE_DATE, slot: SLOT_9_10, roomId: "MR-1" })];
+
+    expect(ReservationEngine.isRoomReserved(existing, FUTURE_DATE, "MR-1", SLOT_9_10.id)).toBe(true);
+    expect(ReservationEngine.isRoomReserved(existing, FUTURE_DATE, "MR-2", SLOT_9_10.id)).toBe(false);
+  });
+});

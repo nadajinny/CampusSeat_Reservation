@@ -68,6 +68,74 @@
     return String(value).padStart(2, "0");
   }
 
+  function parseDateOnly(dateStr) {
+    if (!dateStr) return null;
+    const [year, month, day] = dateStr.split("-").map(Number);
+    if ([year, month, day].some((value) => Number.isNaN(value))) {
+      return null;
+    }
+    return new Date(year, month - 1, day);
+  }
+
+  function isPastDate(dateStr) {
+    const target = parseDateOnly(dateStr);
+    if (!target) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    target.setHours(0, 0, 0, 0);
+    return target < today;
+  }
+
+  function getSlotStartMinutes(slot) {
+    if (!slot) return null;
+    if (typeof slot.startMinutes === "number") return slot.startMinutes;
+    if (typeof slot.start === "string") {
+      const [hour, minute] = slot.start.split(":").map(Number);
+      if (!Number.isNaN(hour) && !Number.isNaN(minute)) {
+        return hour * 60 + minute;
+      }
+    }
+    return null;
+  }
+
+  function isSlotInPast(dateStr, slot) {
+    const target = parseDateOnly(dateStr);
+    if (!target) return false;
+    const startMinutes = getSlotStartMinutes(slot);
+    if (startMinutes === null) return false;
+
+    const today = new Date();
+    const targetMidnight = new Date(target);
+    targetMidnight.setHours(0, 0, 0, 0);
+    const todayMidnight = new Date(today);
+    todayMidnight.setHours(0, 0, 0, 0);
+
+    if (targetMidnight < todayMidnight) return true;
+    if (targetMidnight > todayMidnight) return false;
+
+    const nowMinutes = today.getHours() * 60 + today.getMinutes();
+    return startMinutes <= nowMinutes;
+  }
+
+  function updateDateValidation(dateValue) {
+    const messageEl = document.getElementById("reservationDateMessage");
+    if (!messageEl) return;
+    if (!dateValue) {
+      messageEl.textContent = "";
+      messageEl.className = "notice";
+      return;
+    }
+
+    if (isPastDate(dateValue)) {
+      messageEl.textContent = "과거 날짜는 예약할 수 없습니다.";
+      messageEl.className = "notice error";
+      return;
+    }
+
+    messageEl.textContent = "예약 가능한 날짜입니다.";
+    messageEl.className = "notice success";
+  }
+
   function renderUserSummary(id) {
     const textEl = document.getElementById("studentIdText");
     if (textEl) {
@@ -100,10 +168,15 @@
     });
 
     if (dateInput) {
-      dateInput.addEventListener("change", () => {
-        state.filters.date = dateInput.value;
+      const handleDateChange = () => {
+        const value = dateInput.value;
+        updateDateValidation(value);
+        state.filters.date = value;
         handleFilterChange();
-      });
+      };
+
+      dateInput.addEventListener("change", handleDateChange);
+      dateInput.addEventListener("input", handleDateChange);
     }
 
     if (readingProceedBtn) {
@@ -133,6 +206,13 @@
     toggleSection("reading-time-section", false);
 
     if (!date || !type) {
+      clearElement("meeting-time-list");
+      clearElement("reading-time-grid");
+      updateReadingProceedButton();
+      return;
+    }
+
+    if (isPastDate(date)) {
       clearElement("meeting-time-list");
       clearElement("reading-time-grid");
       updateReadingProceedButton();
@@ -209,6 +289,7 @@
 
     const slotCount = state.meetingStatus.rooms[0].slots.length;
     listEl.innerHTML = "";
+    let visibleCount = 0;
 
     for (let index = 0; index < slotCount; index += 1) {
       const slotMeta = state.meetingStatus.rooms[0].slots[index];
@@ -220,6 +301,12 @@
         return slotInfo && slotInfo.is_available;
       }).length;
 
+      if (isSlotInPast(state.filters.date, slot) || availableRooms === 0) {
+        continue;
+      }
+
+      visibleCount += 1;
+
       const row = document.createElement("div");
       row.className = "time-slot-row";
 
@@ -228,26 +315,28 @@
 
       const info = document.createElement("span");
       info.className = "notice";
-      info.textContent = availableRooms > 0 ? `예약 가능 회의실 ${availableRooms}개` : "예약 불가";
+      info.textContent = `예약 가능 회의실 ${availableRooms}개`;
 
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = availableRooms > 0 ? "회의실 선택" : "예약 불가";
-      button.disabled = availableRooms === 0;
+      button.textContent = "회의실 선택";
+      button.disabled = false;
 
-      if (availableRooms > 0) {
-        button.addEventListener("click", () => {
-          setPendingReservation({
-            type: "MEETING",
-            date: state.filters.date,
-            slot,
-          });
-          window.location.href = "meeting-room-reservation.html";
+      button.addEventListener("click", () => {
+        setPendingReservation({
+          type: "MEETING",
+          date: state.filters.date,
+          slot,
         });
-      }
+        window.location.href = "meeting-room-reservation.html";
+      });
 
       row.append(label, info, button);
       listEl.appendChild(row);
+    }
+
+    if (visibleCount === 0) {
+      listEl.innerHTML = "<p class=\"notice\">예약 가능한 시간이 없습니다.</p>";
     }
   }
 
@@ -262,16 +351,35 @@
 
     grid.innerHTML = "";
 
-    for (let i = 0; i < READING_SLOTS.length; i += 2) {
+    const visibleSlots = READING_SLOTS.filter((slot) => {
+      if (isSlotInPast(state.filters.date, slot)) return false;
+      return countAvailableSeatsForSlot(slot) > 0;
+    });
+
+    if (visibleSlots.length === 0) {
+      grid.innerHTML = "<p class=\"notice\">예약 가능한 시간이 없습니다.</p>";
+      state.selectedReadingSlot = null;
+      updateReadingProceedButton();
+      return;
+    }
+
+    if (state.selectedReadingSlot) {
+      const stillVisible = visibleSlots.some((slot) => slot.id === state.selectedReadingSlot);
+      if (!stillVisible) {
+        state.selectedReadingSlot = null;
+      }
+    }
+
+    for (let i = 0; i < visibleSlots.length; i += 2) {
       const row = document.createElement("div");
       row.className = "slot-row";
 
-      const firstSlot = READING_SLOTS[i];
+      const firstSlot = visibleSlots[i];
       if (firstSlot) {
         row.appendChild(createSeatSlotCard(firstSlot));
       }
 
-      const secondSlot = READING_SLOTS[i + 1];
+      const secondSlot = visibleSlots[i + 1];
       if (secondSlot) {
         row.appendChild(createSeatSlotCard(secondSlot));
       }

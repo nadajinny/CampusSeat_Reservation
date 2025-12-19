@@ -218,4 +218,53 @@ describe("ApiClient 예약 요청", () => {
 
     expect(global.fetch.mock.calls[0][0]).toBe("http://example.com/api/reservations/me");
   });
+
+  test("회의실 예약은 전용 경로로 전송한다", async () => {
+    const ApiClient = loadApiClient();
+    global.fetch.mockResolvedValue(buildJsonResponse({ payload: { id: "M-1" } }));
+
+    await ApiClient.createMeetingReservation({ room_id: 1, date: "2030-01-08" });
+
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe("http://example.com/api/reservations/meeting-rooms");
+    expect(options.method).toBe("POST");
+    expect(JSON.parse(options.body)).toEqual({ room_id: 1, date: "2030-01-08" });
+  });
+
+  test("예약 취소는 DELETE 메서드를 사용한다", async () => {
+    const ApiClient = loadApiClient();
+    global.fetch.mockResolvedValue(buildJsonResponse({ payload: { id: "R-1" } }));
+
+    await ApiClient.cancelReservation("R-1");
+
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe("http://example.com/api/reservations/me/R-1");
+    expect(options.method).toBe("DELETE");
+  });
+});
+
+describe("ApiClient 상태 조회", () => {
+  test("회의실 상태 조회는 날짜 파라미터를 포함한다", async () => {
+    const ApiClient = loadApiClient();
+    global.fetch.mockResolvedValue(buildJsonResponse({ payload: { rooms: [] } }));
+
+    const result = await ApiClient.fetchMeetingRoomStatus("2030-01-08");
+
+    expect(global.fetch.mock.calls[0][0]).toBe(
+      "http://example.com/api/status/meeting-rooms?date=2030-01-08"
+    );
+    expect(result).toEqual({ rooms: [] });
+  });
+
+  test("좌석 상태 조회는 날짜 파라미터를 포함한다", async () => {
+    const ApiClient = loadApiClient();
+    global.fetch.mockResolvedValue(buildJsonResponse({ payload: { seats: [] } }));
+
+    const result = await ApiClient.fetchSeatStatus("2030-01-08");
+
+    expect(global.fetch.mock.calls[0][0]).toBe(
+      "http://example.com/api/status/seats?date=2030-01-08"
+    );
+    expect(result).toEqual({ seats: [] });
+  });
 });
