@@ -99,6 +99,7 @@
 1. **Install & bootstrap backend**
 
    ```bash
+   cd backend
    python3 -m venv .venv
    source .venv/bin/activate        # Windows: .venv\Scripts\activate
    pip install -r requirements.txt
@@ -107,6 +108,7 @@
 2. **Run FastAPI (port 8000)**
 
    ```bash
+   cd backend
    uvicorn app.main:app --reload --port 8000
    ```
 
@@ -116,7 +118,8 @@
 3. **Serve the frontend on port 5500 (same origin for every page)**
 
    ```bash
-   # project root에서 실행해야 /js, /css, *.html 전체가 노출됩니다.
+   cd frontend
+   # frontend 디렉터리에서 실행해야 /js, /css, *.html 전체가 노출됩니다.
    python3 -m http.server 5500
    ```
 
@@ -137,10 +140,20 @@
 
 ```
 .
-├── index.html        # 전체 화면 구조 (학생/관리자)
-├── README.md
-└── docs/
-    └── SRS.pdf       # Software Requirements Specification (optional)
+├── backend/
+│   ├── app/
+│   ├── tests/
+│   ├── requirements.txt
+│   └── pytest.ini
+├── frontend/
+│   ├── index.html        # 전체 화면 구조 (학생/관리자)
+│   ├── css/
+│   ├── js/
+│   ├── __tests__/
+│   └── package.json
+├── docs/
+│   └── frontend-test.md
+└── README.md
 ```
 
 ---
@@ -251,7 +264,7 @@ This project is for educational purposes as part of a Software Engineering cours
 
 ## 🧠 Reservation Engine & Validation (NEW)
 
-프런트엔드의 모든 예약 흐름은 `js/reservation-engine.js`에 정의된 **ReservationEngine** 클래스를 통해 검증됩니다.  
+프런트엔드의 모든 예약 흐름은 `frontend/js/reservation-engine.js`에 정의된 **ReservationEngine** 클래스를 통해 검증됩니다.  
 객체지향 기반 설계로, 공통 규칙과 시설별 제약을 정확한 순서로 평가합니다.
 
 ### 공통 거부 규칙
@@ -278,9 +291,9 @@ This project is for educational purposes as part of a Software Engineering cours
 
 ## 🧪 Automated Tests (TDD)
 
-- `__tests__/reservation-engine.test.js`에 Jest 기반 단위 테스트 21개가 포함되어 있으며,
+- `frontend/__tests__/reservation-engine.test.js`에 Jest 기반 단위 테스트 21개가 포함되어 있으며,
   모든 예약 거부 시나리오와 정상 플로우를 검증합니다.
-- `npm test` 명령으로 실행되며, CI/TDD 사이클을 유지하는 데 필수입니다.
+- `frontend` 디렉터리에서 `npm test` 명령으로 실행되며, CI/TDD 사이클을 유지하는 데 필수입니다.
 - 테스트 추가 시 ReservationEngine을 중심으로 새로운 케이스를 손쉽게 확장할 수 있습니다.
 
 ---
@@ -304,6 +317,7 @@ This project is for educational purposes as part of a Software Engineering cours
 1. **Backend API (FastAPI) 실행**
 
    ```bash
+   cd backend
    python3 -m venv .venv
    source .venv/bin/activate        # Windows: .venv\Scripts\activate
    pip install -r requirements.txt
@@ -315,6 +329,7 @@ This project is for educational purposes as part of a Software Engineering cours
 2. **정적 프런트엔드 실행**
 
    ```bash
+   cd frontend
    python3 -m http.server 5500
    # http://127.0.0.1:5500/login.html (또는 dashboard.html)
    ```
@@ -328,21 +343,29 @@ This project is for educational purposes as part of a Software Engineering cours
 
 ```
 .
-├── dashboard.html                # 학생/관리자 공용 대시보드
-├── login.html                    # 로그인 화면
-├── search-availability.html      # 예약 가능 시간 조회
-├── meeting-room-reservation.html # 회의실 예약
-├── seat-reservation.html         # 열람실 좌석 예약
-├── my-reservations.html          # 내 예약 관리
-├── css/
-│   └── style.css
-├── js/
-│   ├── app.js                 # UI 상태 & 이벤트
-│   └── reservation-engine.js  # 예약 검증 로직 (OOP/TDD)
-├── __tests__/                 # Jest 단위 테스트
-│   └── reservation-engine.test.js
-├── package.json               # npm scripts (npm install / npm test)
-├── .gitignore                 # node_modules 등 민감/빌드 산출물 제외
+├── backend/
+│   ├── app/                       # FastAPI 서비스
+│   ├── tests/                     # pytest 테스트
+│   ├── requirements.txt
+│   └── pytest.ini
+├── frontend/
+│   ├── dashboard.html             # 학생/관리자 공용 대시보드
+│   ├── login.html                 # 로그인 화면
+│   ├── search-availability.html   # 예약 가능 시간 조회
+│   ├── meeting-room-reservation.html # 회의실 예약
+│   ├── seat-reservation.html      # 열람실 좌석 예약
+│   ├── my-reservations.html       # 내 예약 관리
+│   ├── css/
+│   │   └── style.css
+│   ├── js/
+│   │   ├── app.js                 # UI 상태 & 이벤트
+│   │   └── reservation-engine.js  # 예약 검증 로직 (OOP/TDD)
+│   ├── __tests__/                 # Jest 단위 테스트
+│   │   └── reservation-engine.test.js
+│   ├── package.json               # npm scripts (npm install / npm test)
+│   └── package-lock.json
+├── docs/
+│   └── frontend-test.md
 └── README.md
 ```
 
@@ -378,18 +401,21 @@ This project is for educational purposes as part of a Software Engineering cours
 1. **Install dependencies** (once per machine)
 
    ```bash
+   cd frontend
    npm install
    ```
 
 2. **Run unit tests (ReservationEngine TDD suite)**
 
    ```bash
+   cd frontend
    npm test
    ```
 
 3. **Static assets / local preview**
 
    ```bash
+   cd frontend
    python3 -m http.server 5500
    # open http://localhost:5500/
    ```
