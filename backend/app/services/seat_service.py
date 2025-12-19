@@ -178,6 +178,8 @@ def reserve_seat(
         # -------------------------------------------------------
         # 3. 예약 생성 (여기서 Commit 되면서 Lock 해제됨)
         # -------------------------------------------------------
+        db.commit()
+        db.refresh(reservation)
         return reservation
     except Exception as e:
         db.rollback()

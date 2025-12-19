@@ -11,6 +11,10 @@ from app import models, schemas
 from app.constants import FacilityConstants, OperationHours, ReservationLimits, SeatSlotConstants
 
 KST = timezone(timedelta(hours=9))
+CONFLICT_CHECK_STATUSES = [
+    models.ReservationStatus.RESERVED,
+    models.ReservationStatus.IN_USE,
+]
 
 
 def get_meeting_room_status(
@@ -50,7 +54,7 @@ def get_meeting_room_status(
             # 해당 시간대에 예약이 있는지 확인
             conflict = db.query(models.Reservation).filter(
                 models.Reservation.meeting_room_id == room_id,
-                models.Reservation.status == models.ReservationStatus.RESERVED,
+                models.Reservation.status.in_(CONFLICT_CHECK_STATUSES),
                 models.Reservation.start_time < end_dt_utc,
                 models.Reservation.end_time > start_dt_utc,
             ).first()
@@ -111,7 +115,7 @@ def get_seat_status(
             # 해당 시간대에 예약이 있는지 확인
             conflict = db.query(models.Reservation).filter(
                 models.Reservation.seat_id == seat_id,
-                models.Reservation.status == models.ReservationStatus.RESERVED,
+                models.Reservation.status.in_(CONFLICT_CHECK_STATUSES),
                 models.Reservation.start_time < end_dt_utc,
                 models.Reservation.end_time > start_dt_utc,
             ).first()
