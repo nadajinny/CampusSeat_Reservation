@@ -1,10 +1,14 @@
 """
 main.py - Application Entry Point
 """
+import os
+from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.scheduler import scheduler, update_reservation_status
 from app.database import engine, Base
@@ -65,15 +69,61 @@ app.add_exception_handler(Exception, internal_exception_handler)
 # 5. 라우터 등록
 app.include_router(api_router)
 
-# 6. 기본 엔드포인트
-@app.get("/")
-def read_root():
-    return {
-        "message": "Welcome to the Library Seat Reservation System!",
-        "docs": "/docs",
-        "redoc": "/redoc"
-    }
+# 6. 정적 파일 서빙 설정
+# frontend 디렉터리 경로 (backend/app/main.py 기준으로 상위 두 단계 -> 프로젝트 루트 -> frontend)
+FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "frontend"
 
+# 정적 파일(css, js) 서빙 - API 라우터보다 후순위로 등록
+if FRONTEND_DIR.exists():
+    app.mount("/css", StaticFiles(directory=FRONTEND_DIR / "css"), name="css")
+    app.mount("/js", StaticFiles(directory=FRONTEND_DIR / "js"), name="js")
+
+# 7. 기본 엔드포인트
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+# 8. HTML 페이지 라우팅 (SPA 스타일이 아닌 개별 페이지 서빙)
+@app.get("/")
+def serve_index():
+    """루트 경로 - index.html 서빙"""
+    index_file = FRONTEND_DIR / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
+    return {"message": "Welcome to the Library Seat Reservation System!", "docs": "/docs"}
+
+@app.get("/login")
+@app.get("/login.html")
+def serve_login():
+    """로그인 페이지"""
+    return FileResponse(FRONTEND_DIR / "login.html")
+
+@app.get("/dashboard")
+@app.get("/dashboard.html")
+def serve_dashboard():
+    """대시보드 페이지"""
+    return FileResponse(FRONTEND_DIR / "dashboard.html")
+
+@app.get("/seat-reservation")
+@app.get("/seat-reservation.html")
+def serve_seat_reservation():
+    """좌석 예약 페이지"""
+    return FileResponse(FRONTEND_DIR / "seat-reservation.html")
+
+@app.get("/meeting-room-reservation")
+@app.get("/meeting-room-reservation.html")
+def serve_meeting_room_reservation():
+    """회의실 예약 페이지"""
+    return FileResponse(FRONTEND_DIR / "meeting-room-reservation.html")
+
+@app.get("/my-reservations")
+@app.get("/my-reservations.html")
+def serve_my_reservations():
+    """내 예약 페이지"""
+    return FileResponse(FRONTEND_DIR / "my-reservations.html")
+
+@app.get("/search-availability")
+@app.get("/search-availability.html")
+def serve_search_availability():
+    """좌석 검색 페이지"""
+    return FileResponse(FRONTEND_DIR / "search-availability.html")
