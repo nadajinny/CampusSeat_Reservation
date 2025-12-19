@@ -9,7 +9,7 @@ Key Concepts for Students:
 - get_db: A dependency that provides a session and ensures cleanup
 """
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 # ---------------------------------------------------------------------------
@@ -32,6 +32,14 @@ engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     connect_args={"check_same_thread": False}
 )
+
+# SQLite WAL 모드 활성화 (동시성 성능 향상 및 락 대기 최적화)
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.close()
 
 # ---------------------------------------------------------------------------
 # Create a Session Factory

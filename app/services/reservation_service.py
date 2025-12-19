@@ -6,8 +6,10 @@ from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
-
+from sqlalchemy import text
 from app import models
+from app.constants import ErrorCode
+from app.exceptions import BusinessException, ForbiddenException
 
 # 충돌 검사용: 해당 시설이 현재 점유 중인지 확인 (예약됨, 사용 중)
 CONFLICT_CHECK_STATUSES = [
@@ -108,9 +110,8 @@ def create_meeting_room_reservation(
             participant_student_id=participant_id,
         )
         db.add(participant)
-
-    db.commit()
-    db.refresh(reservation)
+    
+    db.flush()
     return reservation
 
 
@@ -131,8 +132,8 @@ def create_seat_reservation(
         status=models.ReservationStatus.RESERVED,
     )
     db.add(reservation)
-    db.commit()
-    db.refresh(reservation)
+    db.flush()
+    
     return reservation
 
 
@@ -169,41 +170,46 @@ def cancel_reservation(
     student_id: int
 ) -> models.Reservation:
     """예약 취소"""
-    from app.constants import ErrorCode
-    from app.exceptions import BusinessException, ForbiddenException
 
-    reservation = (
-        db.query(models.Reservation)
-        .filter(models.Reservation.reservation_id == reservation_id)
-        .first()
-    )
-
-    if not reservation:
-        raise BusinessException(
-            code=ErrorCode.NOT_FOUND,
-            message=f"예약 ID {reservation_id}를 찾을 수 없습니다.",
+    try:
+        db.execute(text("BEGIN IMMEDIATE"))
+        
+        reservation = (
+            db.query(models.Reservation)
+            .filter(models.Reservation.reservation_id == reservation_id)
+            .first()
         )
 
-    if reservation.student_id != student_id:
-        raise ForbiddenException(
-            code=ErrorCode.AUTH_FORBIDDEN,
-            message="본인의 예약만 취소할 수 있습니다.",
-        )
+        if not reservation:
+            raise BusinessException(
+                code=ErrorCode.NOT_FOUND,
+                message=f"예약 ID {reservation_id}를 찾을 수 없습니다.",
+            )
 
-    if reservation.status == models.ReservationStatus.CANCELED:
-        raise BusinessException(
-            code=ErrorCode.RESERVATION_ALREADY_CANCELED,
-            message="이미 취소된 예약입니다.",
-        )
-    
-    if reservation.status != models.ReservationStatus.RESERVED:
-        raise ForbiddenException(
-            code=ErrorCode.AUTH_FORBIDDEN,
-            message="예약 중(RESERVED) 상태의 예약만 취소할 수 있습니다.",
-        )
+        if reservation.student_id != student_id:
+            raise ForbiddenException(
+                code=ErrorCode.AUTH_FORBIDDEN,
+                message="본인의 예약만 취소할 수 있습니다.",
+            )
 
-    reservation.status = models.ReservationStatus.CANCELED
-    db.commit()
-    db.refresh(reservation)
+        if reservation.status == models.ReservationStatus.CANCELED:
+            raise BusinessException(
+                code=ErrorCode.RESERVATION_ALREADY_CANCELED,
+                message="이미 취소된 예약입니다.",
+            )
+        
+        if reservation.status != models.ReservationStatus.RESERVED:
+            raise ForbiddenException(
+                code=ErrorCode.AUTH_FORBIDDEN,
+                message="예약 중(RESERVED) 상태의 예약만 취소할 수 있습니다.",
+            )
 
-    return reservation
+        reservation.status = models.ReservationStatus.CANCELED
+        db.commit() # [중요] 모든 검증 통과 후 여기서 최종 커밋 (락 해제)
+        db.refresh(reservation)
+
+        return reservation
+
+    except Exception as e:
+        db.rollback() # [중요] 에러 발생 시 롤백하여 락 해제
+        raise e

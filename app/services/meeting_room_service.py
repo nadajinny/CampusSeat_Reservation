@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List
 
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from app import constants, models, schemas
 from app.constants import ErrorCode
@@ -37,100 +38,125 @@ def process_reservation(
     request: schemas.MeetingRoomReservationCreate,
 ) -> models.Reservation:
     
-    # 0. 회의실 존재 및 상태 검증 (스키마 검증 이후 DB 레벨 확인)
-    room = db.query(models.MeetingRoom).filter(models.MeetingRoom.room_id == request.room_id).first()
+    try:
+        # ---------------------------------------------------
+        # [0] 트랜잭션 시작 & 쓰기 잠금 (Critical Section Start)
+        # ---------------------------------------------------
+        # 로직 시작과 동시에 DB 파일을 잠급니다.
+        # 이 시점부터 db.commit() 전까지 다른 쓰기 작업은 대기 상태가 됩니다.
+        db.execute(text("BEGIN IMMEDIATE"))
 
-    if not room:
-        raise ValidationException(
-            code=ErrorCode.NOT_FOUND,
-            message="존재하지 않는 회의실입니다.",
+        # ---------------------------------------------------
+        # 1. 회의실 존재 및 가용성 검증
+        # ---------------------------------------------------
+        room = (
+            db.query(models.MeetingRoom)
+            .filter(models.MeetingRoom.room_id == request.room_id)
+            .first()
         )
 
-    min_participants = constants.ReservationLimits.MEETING_ROOM_MIN_PARTICIPANTS
-    if len(request.participants) < min_participants:
-        raise ValidationException(
-            code=ErrorCode.PARTICIPANT_MIN_NOT_MET,
-            message=f"회의실 예약은 최소 {min_participants}명 이상이어야 합니다.",
-        )
-    # ---------------------------------------------------
-    # 1. 데이터 가공 (KST 입력 -> UTC 변환)
-    # ---------------------------------------------------
-    # 1-1. 날짜 + 시간 합치기 (이때 KST 정보를 붙여야 함!)
-    start_dt_kst = datetime.combine(request.date, request.start_time, tzinfo=KST)
-    end_dt_kst = datetime.combine(request.date, request.end_time, tzinfo=KST)
+        if not room:
+            raise ValidationException(
+                code=ErrorCode.NOT_FOUND,
+                message="존재하지 않는 회의실입니다.",
+            )
+        
+        if not room.is_available:
+            raise ValidationException(
+                 code=ErrorCode.MEETING_ROOM_NOT_AVAILABLE,
+                 message="해당 회의실은 현재 이용할 수 없습니다."
+            )
 
-    # 1-2. DB 저장을 위해 UTC로 변환
-    start_dt_utc = start_dt_kst.astimezone(timezone.utc)
-    end_dt_utc = end_dt_kst.astimezone(timezone.utc)
+        min_participants = constants.ReservationLimits.MEETING_ROOM_MIN_PARTICIPANTS
+        if len(request.participants) < min_participants:
+            raise ValidationException(
+                code=ErrorCode.PARTICIPANT_MIN_NOT_MET,
+                message=f"회의실 예약은 최소 {min_participants}명 이상이어야 합니다.",
+            )
+            
+        # ---------------------------------------------------
+        # 2. 데이터 가공 (KST -> UTC)
+        # ---------------------------------------------------
+        start_dt_kst = datetime.combine(request.date, request.start_time).replace(tzinfo=KST)
+        end_dt_kst = datetime.combine(request.date, request.end_time).replace(tzinfo=KST)
 
-    # 1-3. 이용 시간 계산
-    duration_minutes = (end_dt_utc - start_dt_utc).total_seconds() / 60
+        start_dt_utc = start_dt_kst.astimezone(timezone.utc)
+        end_dt_utc = end_dt_kst.astimezone(timezone.utc)
 
-    # ---------------------------------------------------
-    # 3. 유저 처리 및 예약 생성 (Action)
-    # ---------------------------------------------------
+        duration_minutes = (end_dt_utc - start_dt_utc).total_seconds() / 60
 
-    # 3-1. 예약자(메인 유저) 확보
-    user_service.get_or_create_user(db, student_id)
+        # ---------------------------------------------------
+        # 3. 유저 및 참여자 확보
+        # ---------------------------------------------------
+        user_service.get_or_create_user(db, student_id)
 
-    # 3-2. 참여자들 확보 (참여자들도 User 테이블에 있어야 함)
-    participant_ids: list[int] = []
-    for participant in request.participants:
-        user_service.get_or_create_user(db, participant.student_id)
-        participant_ids.append(participant.student_id)
+        participant_ids: list[int] = []
+        for participant in request.participants:
+            user_service.get_or_create_user(db, participant.student_id)
+            participant_ids.append(participant.student_id)
 
-    
-    # 2-1. 회의실 중복 예약 확인
-    if check_room_conflict(db, request.room_id, start_dt_utc, end_dt_utc):
-        raise ConflictException(
-            code=ErrorCode.RESERVATION_CONFLICT,
-            message="해당 회의실은 이미 예약되어 있습니다.",
-        )
+        # ---------------------------------------------------
+        # 4. 비즈니스 로직 검증 (Lock 상태에서 안전하게 수행)
+        # ---------------------------------------------------
 
-    # 2-2. 신청자/참여자 모두 중복 이용(좌석·회의실) 확인
-    participants_all = {student_id} | {p.student_id for p in request.participants}
-    for pid in participants_all:
-        if _has_overlap_for_user(db, pid, start_dt_utc, end_dt_utc):
+        # 4-1. 회의실 중복 예약 확인
+        if check_room_conflict(db, request.room_id, start_dt_utc, end_dt_utc):
             raise ConflictException(
-                code=ErrorCode.OVERLAP_WITH_OTHER_FACILITY,
-                message=f"사용자 {pid}의 동일 시간대 예약이 이미 존재합니다.",
+                code=ErrorCode.RESERVATION_CONFLICT,
+                message="해당 회의실은 이미 예약되어 있습니다.",
             )
 
-    # 2-3. 일일/주간 이용 한도 확인 (신청자 + 참여자 모두)
-    limit_daily = constants.ReservationLimits.MEETING_ROOM_DAILY_LIMIT_MINUTES
-    limit_weekly = constants.ReservationLimits.MEETING_ROOM_WEEKLY_LIMIT_MINUTES
+        # 4-2. 신청자/참여자 모두 중복 이용(좌석·회의실) 확인
+        participants_all = {student_id} | {p.student_id for p in request.participants}
+        for pid in participants_all:
+            if _has_overlap_for_user(db, pid, start_dt_utc, end_dt_utc):
+                raise ConflictException(
+                    code=ErrorCode.OVERLAP_WITH_OTHER_FACILITY,
+                    message=f"사용자 {pid}의 동일 시간대 예약이 이미 존재합니다.",
+                )
 
-    for pid in participants_all:
-        daily_used = check_user_daily_meeting_limit(db, pid, start_dt_utc)
-        if daily_used + duration_minutes > limit_daily:
-            raise LimitExceededException(
-                code=ErrorCode.DAILY_LIMIT_EXCEEDED,
-                message=f"사용자 {pid}의 일일 이용 한도({limit_daily}분)를 초과했습니다. (현재: {daily_used}분 사용 중)",
-            )
+        # 4-3. 일일/주간 이용 한도 확인
+        limit_daily = constants.ReservationLimits.MEETING_ROOM_DAILY_LIMIT_MINUTES
+        limit_weekly = constants.ReservationLimits.MEETING_ROOM_WEEKLY_LIMIT_MINUTES
 
-        weekly_used = check_user_weekly_meeting_limit(db, pid, start_dt_utc)
-        if weekly_used + duration_minutes > limit_weekly:
-            raise LimitExceededException(
-                code=ErrorCode.WEEKLY_LIMIT_EXCEEDED,
-                message=f"사용자 {pid}의 주간 이용 한도({limit_weekly}분)를 초과했습니다. (현재: {weekly_used}분 사용 중)",
-            )
+        for pid in participants_all:
+            daily_used = check_user_daily_meeting_limit(db, pid, start_dt_utc)
+            if daily_used + duration_minutes > limit_daily:
+                raise LimitExceededException(
+                    code=ErrorCode.DAILY_LIMIT_EXCEEDED,
+                    message=f"사용자 {pid}의 일일 이용 한도({limit_daily}분)를 초과했습니다. (현재: {int(daily_used)}분 사용 중)",
+                )
+
+            weekly_used = check_user_weekly_meeting_limit(db, pid, start_dt_utc)
+            if weekly_used + duration_minutes > limit_weekly:
+                raise LimitExceededException(
+                    code=ErrorCode.WEEKLY_LIMIT_EXCEEDED,
+                    message=f"사용자 {pid}의 주간 이용 한도({limit_weekly}분)를 초과했습니다. (현재: {int(weekly_used)}분 사용 중)",
+                )
+
+        # ---------------------------------------------------
+        # 5. 최종 예약 생성 및 커밋
+        # ---------------------------------------------------
+        new_reservation = reservation_service.create_meeting_room_reservation(
+            db=db,
+            student_id=student_id,
+            room_id=request.room_id,
+            start_time=start_dt_utc,
+            end_time=end_dt_utc,
+            participant_ids=participant_ids,
+        )
+
+        db.commit() # [중요] 모든 검증 통과 후 여기서 최종 커밋 (락 해제)
+        db.refresh(new_reservation)
+
+        return new_reservation
+
+    except Exception as e:
+        db.rollback() # [중요] 에러 발생 시 롤백하여 락 해제
+        raise e
 
 
-    # 3-3. 최종 예약 생성 (Reservation Service에게 위임)
-    new_reservation = reservation_service.create_meeting_room_reservation(
-        db=db,
-        student_id=student_id,
-        room_id=request.room_id,
-        start_time=start_dt_utc,
-        end_time=end_dt_utc,
-        participant_ids=participant_ids,
-    )
-
-    return new_reservation
-
-
-# --- 내부 지원 함수들 (DB 조회용) ---
-
+# --- 내부 지원 함수들 (변경 없음) ---
 
 def check_room_conflict(db: Session, room_id: int, start_time: datetime, end_time: datetime) -> bool:
     """회의실 중복 예약 확인"""
@@ -149,7 +175,7 @@ def check_room_conflict(db: Session, room_id: int, start_time: datetime, end_tim
 
 
 def check_user_daily_meeting_limit(db: Session, student_id: int, target_date: datetime) -> int:
-    """일일 사용량 계산 (본인 예약 + 참여 예약 포함)"""
+    """일일 사용량 계산"""
     start_of_day = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_day = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
 
@@ -177,7 +203,7 @@ def check_user_daily_meeting_limit(db: Session, student_id: int, target_date: da
 
 
 def check_user_weekly_meeting_limit(db: Session, student_id: int, target_date: datetime) -> int:
-    """주간 사용량 계산 (본인 예약 + 참여 예약 포함)"""
+    """주간 사용량 계산"""
     start_of_week = target_date - timedelta(days=target_date.weekday())
     start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_week = start_of_week + timedelta(days=6, hours=23, minutes=59, seconds=59)
