@@ -301,7 +301,8 @@
         return slotInfo && slotInfo.is_available;
       }).length;
 
-      if (isSlotInPast(state.filters.date, slot) || availableRooms === 0) {
+      const isPast = isSlotInPast(state.filters.date, slot);
+      if (!isPast && availableRooms === 0) {
         continue;
       }
 
@@ -314,22 +315,31 @@
       label.textContent = slot.label;
 
       const info = document.createElement("span");
-      info.className = "notice";
-      info.textContent = `예약 가능 회의실 ${availableRooms}개`;
+      if (isPast) {
+        info.className = "notice status-blocked";
+        info.textContent = "지난 시간";
+      } else {
+        info.className = "notice";
+        info.textContent = `예약 가능 회의실 ${availableRooms}개`;
+      }
 
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = "회의실 선택";
-      button.disabled = false;
-
-      button.addEventListener("click", () => {
-        setPendingReservation({
-          type: "MEETING",
-          date: state.filters.date,
-          slot,
+      if (isPast) {
+        button.textContent = "지난 시간";
+        button.disabled = true;
+      } else {
+        button.textContent = "회의실 선택";
+        button.disabled = false;
+        button.addEventListener("click", () => {
+          setPendingReservation({
+            type: "MEETING",
+            date: state.filters.date,
+            slot,
+          });
+          window.location.href = "meeting-room-reservation.html";
         });
-        window.location.href = "meeting-room-reservation.html";
-      });
+      }
 
       row.append(label, info, button);
       listEl.appendChild(row);
@@ -352,7 +362,7 @@
     grid.innerHTML = "";
 
     const visibleSlots = READING_SLOTS.filter((slot) => {
-      if (isSlotInPast(state.filters.date, slot)) return false;
+      if (isSlotInPast(state.filters.date, slot)) return true;
       return countAvailableSeatsForSlot(slot) > 0;
     });
 
@@ -364,8 +374,9 @@
     }
 
     if (state.selectedReadingSlot) {
+      const selectedSlot = getSlotById(state.selectedReadingSlot, "READING");
       const stillVisible = visibleSlots.some((slot) => slot.id === state.selectedReadingSlot);
-      if (!stillVisible) {
+      if (!stillVisible || (selectedSlot && isSlotInPast(state.filters.date, selectedSlot))) {
         state.selectedReadingSlot = null;
       }
     }
@@ -398,17 +409,27 @@
     title.textContent = slot.label;
 
     const availableCount = countAvailableSeatsForSlot(slot);
+    const isPast = isSlotInPast(state.filters.date, slot);
     const status = document.createElement("span");
-    status.className = `status-pill ${availableCount > 0 ? "status-available" : "status-blocked"}`;
-    status.textContent = availableCount > 0 ? `${availableCount}석 예약 가능` : "예약 불가";
+    const isBlocked = isPast || availableCount === 0;
+    status.className = `status-pill ${isBlocked ? "status-blocked" : "status-available"}`;
+    if (isPast) {
+      status.textContent = "지난 시간";
+    } else {
+      status.textContent = availableCount > 0 ? `${availableCount}석 예약 가능` : "예약 불가";
+    }
 
     const button = document.createElement("button");
     button.type = "button";
-    const selected = state.selectedReadingSlot === slot.id;
-    button.textContent = selected ? "선택됨" : "예약 선택";
-    button.disabled = availableCount === 0;
+    const selected = !isPast && state.selectedReadingSlot === slot.id;
+    if (isPast) {
+      button.textContent = "지난 시간";
+    } else {
+      button.textContent = selected ? "선택됨" : "예약 선택";
+    }
+    button.disabled = isBlocked;
 
-    if (availableCount > 0) {
+    if (!isBlocked) {
       button.addEventListener("click", () => {
         if (state.selectedReadingSlot === slot.id) {
           state.selectedReadingSlot = null;
