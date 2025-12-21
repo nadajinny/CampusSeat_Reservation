@@ -108,6 +108,8 @@
 2. **Run FastAPI (port 8000)**
 
    ```bash
+   uvicorn app.main:app --reload --app-dir backend
+   or
    cd backend
    uvicorn app.main:app --reload --app-dir backend --port 8000
    ```
